@@ -223,11 +223,7 @@ PYBIND11_MODULE(_lru, m) {
 		.def("hit_rate", &LRU::hit_rate)
 		.def("queue_stats", &LRU::queue_stats)
 		.def("data", &LRU::data);
-   
-	// m.def("lru_delete", [](void* _l) {
-	// 	LRU* l = (LRU *)_l;
-    //     delete l; 
-	// 	});
+
 	m.def("lru_create", [](int C) {
 		return new LRU(C); 
 		});
