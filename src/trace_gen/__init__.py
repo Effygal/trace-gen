@@ -7,3 +7,4 @@ from .misc import *
 from .lru_wrapper import *
 from .TraceReconstructor import *
 from .TraceGenerator import *
+from .fifo_wrapper import *

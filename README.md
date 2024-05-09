@@ -26,86 +26,36 @@ import trace_gen as tg
 ```
 
 ### TraceGenerator
-Use TraceGenerator to generate a trace of length $n$, with accesses in $\{0 \cdots M-1\}$, with three uniform irt classes with selection probabilities $\{0.1, 0.3, 0.6\}$:
+Use TraceGenerator to generate a trace of length $n$, with accesses in $\{0 \cdots M-1\}$, with $k$ uniform inter-reference distance (IRD) classes, and with skewness $s$ (optional):
 ```Python
-generator1 = tg.TraceGenerator(M = 1000, N = 10000, w_r_ratio = 0.5, params = np.array([0.1, 0.3, 0.6]))
-trace1 = generator1.generate_trace()
+generator = tg.TraceGenerator(M = 1000, N = 10000)
+trace1 = generator.generate_trace(k = 5, s = 2)
 ```
-Simulate LRU cache hit rate:
+Simulate LRU & FIFO cache hit rate:
 ```Python
-c = np.arange(1000, 100000, 3000)
-hr_trace1 = [tg.sim_lru(_c, trace1) for _c in c]
+c = np.arange(M//100, M, M//100)
+hr_trace1_lru = [tg.sim_lru(_c, trace1) for _c in c]
+hr_trace1_fifo = [tg.sim_fifo(_c, trace1) for _c in c]
 ```
 
-#### Stratified uniform irt distriutions
-- Stratification by uniform params in monotonically increasing order (e.g. $\{0.1, 0.3, 0.6\}$) generates concave MRCs;
+#### Stratified uniform IRD distriutions
+- Stratification by specifying number of IRD classes and skewness (optional).
 
-The result MRC and corresponding irt distribution:
-<div style="display: flex;">
-    <div style="flex: 50%; padding: 5px;">
-        <p>Hit ratio curve for trace1 under LRU</p>
-        <img src="figures/uniform11.png" alt="Hit ratio curve" style="width: 100%;">
-    </div>
-    <div style="flex: 50%; padding: 5px;">
-        <p>IRT distribution for trace1</p>
-        <img src="figures/uniform12.png" alt="IRT distribution" style="width: 100%;">
-    </div>
-</div>
+- MRCs and corresponding IRD distribution under different settings:
+![](figures/class10.png)
+<!-- ![](figures/class10_2.png) -->
+![](figures/class5.png)
+![](figures/class4.png)
 
-- Stratification by uniform params in non-increasing or arbitrary order (e.g. $\{0.6, 0.3, 0.1\}$ or $\{0.6, 0.1, 0.3\}$) generates "ugly" MRCs;
-```Python
-generator2 = tg.TraceGenerator(1000, 10000, 0.5, np.array([0.6, 0.3, 0.1]))
-trace2 = generator2.generate_trace()
-```
-```Python
-hr_trace2 = [tg.sim_lru(_c, trace2) for _c in c]
-```
-<div style="display: flex;">
-    <div style="flex: 50%; padding: 5px;">
-        <p>Hit ratio curve for trace1 under LRU</p>
-        <img src="figures/uniform21.png" alt="Hit ratio curve" style="width: 100%;">
-    </div>
-    <div style="flex: 50%; padding: 5px;">
-        <p>IRT distribution for trace1</p>
-        <img src="figures/uniform22.png" alt="IRT distribution" style="width: 100%;">
-    </div>
-</div>
+- MRCs and corresponding IRD distribution under different settings (with skewness specification):
+![](figures/class10skew2.png)
+![](figures/class5skew3.png)
+![](figures/class5skew2.png)
+![](figures/class5skew1.png)
+![](figures/class4skew3.png)
+![](figures/class4skew2.png)
+![](figures/class4skew1.png)
 
-```Python
-generator3 = tg.TraceGenerator(1000, 10000, 0.5, np.array([0.6, 0.1, 0.3]))
-trace3 = generator3.generate_trace()
-```
-```Python
-hr_trace3 = [tg.sim_lru(_c, trace3) for _c in c]
-```
-<div style="display: flex;">
-    <div style="flex: 50%; padding: 5px;">
-        <p>Hit ratio curve for trace1 under LRU</p>
-        <img src="figures/uniform31.png" alt="Hit ratio curve" style="width: 100%;">
-    </div>
-    <div style="flex: 50%; padding: 5px;">
-        <p>IRT distribution for trace1</p>
-        <img src="figures/uniform32.png" alt="IRT distribution" style="width: 100%;">
-    </div>
-</div>
-
-```Python
-generator4 = tg.TraceGenerator(1000, 10000, 0.5, np.array([0.4, 0.15, 0.25, 0.2]))
-trace4 = generator4.generate_trace()
-```
-```Python
-hr_trace4 = [tg.sim_lru(_c, trace4) for _c in c]
-```
-<div style="display: flex;">
-    <div style="flex: 50%; padding: 5px;">
-        <p>Hit ratio curve for trace1 under LRU</p>
-        <img src="figures/uniform41.png" alt="Hit ratio curve" style="width: 100%;">
-    </div>
-    <div style="flex: 50%; padding: 5px;">
-        <p>IRT distribution for trace1</p>
-        <img src="figures/uniform42.png" alt="IRT distribution" style="width: 100%;">
-    </div>
-</div>
 
 ### TraceReconstructor
 Use `TraceReconstructor` to reconstruct a synthetic trace of given real trace `w26` of length $n$:
