@@ -4,7 +4,7 @@
 import pickle
 import trace_gen.lru_wrapper as lru_wrapper
 # import clock
-# import fifo
+import trace_gen.fifo_wrapper as fifo
 import heapq
 import numpy as np
 import random
@@ -102,14 +102,14 @@ def gen_from_iad2(f, largest_address, number_of_samples):
     return np.array(addrs, dtype=np.int32)
 
 
-# def sim_fifo(C, trace, raw=False):
-#     f = fifo.fifo(C)
-#     f.run(trace)
-#     if raw:
-#         a, m, c = f.data()
-#         return 1 - m/a
-#     else:
-#         return f.hitrate()
+def sim_fifo(C, trace, raw=False):
+    f = fifo.fifo(C)
+    f.run(trace)
+    if raw:
+        a, m, c = f.data()
+        return 1 - m/a
+    else:
+        return f.hitrate()
 
 
 # def sim_clock(C, trace, raw=False):

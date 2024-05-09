@@ -58,7 +58,7 @@ public:
 	{
 		for (int i = tail; i < head; i++)
 			assert(cache[i] == -1 || map[cache[i]] == i);
-		for (int i = 0; i < map.size(); i++)
+		for (unsigned int i = 0; i < map.size(); i++)
 		{
 			assert(map[i] == -1 || cache[map[i]] == i);
 			assert(map[i] < head);
@@ -111,7 +111,7 @@ public:
 		len++;
 	}
 
-	void access(int addr)
+	void access(unsigned int addr)
 	{
 		n_access++;
 		if (len < C)
@@ -127,7 +127,7 @@ public:
 			pop();
 	}
 
-	void access_verbose(int addr, int32_t* miss, int32_t* evictee,
+	void access_verbose(unsigned int addr, int32_t* miss, int32_t* evictee,
 						int32_t* last_ref, int32_t* entered)
 	{
 		n_access++;
