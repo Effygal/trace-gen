@@ -254,67 +254,8 @@ PYBIND11_MODULE(_lru, m) {
 			int _access, _miss, _cachefill;
 			l.data(_access, _miss, _cachefill);
 			return py::make_tuple(_access, _miss, _cachefill);
-			// l.data(_access, _miss, _cachefill);
 		} else { 
 			throw std::invalid_argument("Not passing LRU object");
 		}
 	});
-
-	// extern "C" void lru_data(void *_l, int *_access, int *_miss, int *_cachefill)
-	// {
-	// 	LRU *l = (LRU *)_l;
-	// 	l->data(*_access, *_miss, *_cachefill);
-	// }
-
-	// void data(int &_access, int &_miss, int &_cachefill)
-	// {
-	// 	_access = n_access;
-	// 	_miss = n_miss;
-	// 	_cachefill = n_cachefill;
-	// }
-
 }
-
-// extern "C" void *lru_create(int C)
-// {
-// 	LRU *l = new LRU(C);
-// 	return (void *)l;
-// }
-
-// extern "C" void lru_delete(void *_l)
-// {
-// 	LRU *l = (LRU *)_l;
-// 	delete l;
-// }
-
-// extern "C" void lru_run(void *_l, int n, py::array_t< int32_t >& a)
-// {
-// 	LRU *l = (LRU *)_l;
-// 	l->multi_access(n, a);
-// }
-
-// extern "C" int lru_contents(void *_l, py::array_t< int32_t >& out)
-// {
-// 	LRU *l = (LRU *)_l;
-// 	return l->contents(out);
-// }
-
-// extern "C" void lru_run_age(void *_l, int n, py::array_t< int32_t >& a, py::array_t< int32_t >& b, py::array_t< int32_t >& c, py::array_t< int32_t >& d, py::array_t< int32_t >& e)
-// {
-// 	LRU *l = (LRU *)_l;
-// 	l->multi_access_age(n, a, b, c, d, e);
-// }
-
-// extern "C" double lru_hitrate(void *_l)
-// {
-// 	LRU *l = (LRU *)_l;
-// 	return l->hit_rate();
-// }
-
-// extern "C" void lru_queue_stats(void *_l, py::array_t< int32_t >& n, double *s, double *s2)
-// {
-// 	LRU *l = (LRU *)_l;
-// 	l->queue_stats(n, s, s2);
-// }
-
-

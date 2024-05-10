@@ -2,9 +2,9 @@
 #
 
 import pickle
-import trace_gen.lru_wrapper as lru_wrapper
-# import clock
+import trace_gen.lru_wrapper as lru
 import trace_gen.fifo_wrapper as fifo
+import trace_gen.clock_wrapper as clock
 import heapq
 import numpy as np
 import random
@@ -101,7 +101,6 @@ def gen_from_iad2(f, largest_address, number_of_samples):
     # return List[address: int], List[hot_or_cold: bool]
     return np.array(addrs, dtype=np.int32)
 
-
 def sim_fifo(C, trace, raw=False):
     f = fifo.fifo(C)
     f.run(trace)
@@ -111,20 +110,18 @@ def sim_fifo(C, trace, raw=False):
     else:
         return f.hitrate()
 
-
-# def sim_clock(C, trace, raw=False):
-#     c = clock.clock(C)
-#     c.run(trace)
-#     if raw:
-#         # variable name c used for two different thing?
-#         a, m, cf, recycle, examined, sumabit = c.data()
-#         return 1 - m/a
-#     else:
-#         return c.hitrate()
-
+def sim_clock(C, trace, raw=False):
+    c = clock.clock(C)
+    c.run(trace)
+    if raw:
+        # variable name c used for two different thing?
+        a, m, cf, recycle, examined, sumabit = c.data()
+        return 1 - m/a
+    else:
+        return c.hitrate()
 
 def sim_lru(C, trace, raw=False):
-    l = lru_wrapper.lru(C)
+    l = lru.lru(C)
     l.run(trace)
     if raw:
         a, m, c = l.data()
@@ -134,7 +131,6 @@ def sim_lru(C, trace, raw=False):
 
 # "compact" the address space of a trace.
 
-
 def squash(t):
     a = np.unique(t)
     n = np.zeros(np.max(t)+1, dtype=np.int32)
@@ -142,13 +138,11 @@ def squash(t):
     n[a] = x
     return n[t]
 
-
 def from_pickle(f):
     fp = open(f, 'rb')
     val = pickle.load(fp)
     fp.close()
     return val
-
 
 def to_pickle(var, f):
     fp = open(f, 'wb')
