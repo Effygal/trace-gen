@@ -1,20 +1,16 @@
 from ctypes import *
 import numpy as np
-# liblru = CDLL('./liblru.so')
 import _lru
 
 
 class lru:
     def __init__(self, C):
-        # self.l = liblru.lru_create(c_int(C))
         self.l = _lru.lru_create(C)
         self.C = C
 
     def run(self, trace):
         if type(trace[0]) != np.int32:
             trace = np.array(trace, dtype=np.int32)
-        # liblru.lru_run(c_void_p(self.l), c_int(len(trace)),
-        #                trace.ctypes.data_as(c_void_p))
         _lru.lru_run(self.l, len(trace), trace)
 
     def run_age(self, trace):
@@ -24,12 +20,6 @@ class lru:
         evicted = np.zeros(len(trace), dtype=np.int32)
         age1 = np.zeros(len(trace), dtype=np.int32)
         age2 = np.zeros(len(trace), dtype=np.int32)
-        # liblru.lru_run_age(c_void_p(self.l), c_int(len(trace)),
-        #                    trace.ctypes.data_as(c_void_p),
-        #                    misses.ctypes.data_as(c_void_p),
-        #                    evicted.ctypes.data_as(c_void_p),
-        #                    age1.ctypes.data_as(c_void_p),
-        #                    age2.ctypes.data_as(c_void_p))
         _lru.lru_run_age(self.l, len(trace), trace, misses, evicted, age1, age2)
         return [age1, age2, misses]
 
@@ -56,7 +46,6 @@ class lru:
 
     def contents(self):
         val = np.zeros(self.C, dtype=np.int32)
-        # n = liblru.lru_contents(c_void_p(self.l), val.ctypes.data_as(c_void_p))
         n = _lru.lru_contents(self.l, val)
         return val[:n]
 
@@ -66,19 +55,9 @@ class lru:
 
     def data(self) -> tuple:
         return _lru.lru_data(self.l)
-        # n_access = 0 # c_int()
-        # n_miss = 0 # c_int()
-        # n_cachefill = 0 # c_int()
-        # _lru.lru_data(self.l, n_access, n_miss, n_cachefill)
-        #             #   byref(n_access), byref(n_miss),
-        #                 # byref(n_cachefill))
-        # print(n_access, n_miss, n_cachefill)
-        
-        # return [n_access, n_miss, n_cachefill]
 
     def queue_raw_stats(self):
         n, s, s2 = c_int(), c_double(), c_double()
-        # liblru.lru_queue_stats(c_void_p(self.l), byref(n), byref(s), byref(s2))
         _lru.lru_queue_stats(self.l, byref(n), byref(s), byref(s2))
         return [n.value, s.value, s2.value]
 
@@ -86,6 +65,3 @@ class lru:
         n, s, s2 = self.queue_raw_stats()
         return (s/n, np.sqrt((s2 - s*s/n)/(n-1)))
 
-    # def __del__(self):
-    #     # liblru.lru_delete(c_void_p(self.l))
-    #     _lru.lru_delete(self.l)

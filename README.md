@@ -5,15 +5,17 @@
 Generates traces of 1D integer array that represent read address accesses;
 
 Modules:
-    (1) `TraceGenerator`---generate a synthetic trace with a list of Poisson rates that add up to one as input.
-    (2) `TraceReconstructor`---generate synthetic traces with a real-world trace as input. Supports inter-reference time-based reconstruction and frequency-based reconstruction.
-    (3) `LRU` cache simulator. 
+    (1) `TraceGenerator`---generate a synthetic trace with a list of Poisson rates that add up to one as input;
+    (2) `TraceReconstructor`---generate synthetic traces with a real-world trace as input. Supports inter-reference time-based reconstruction and frequency-based reconstruction;
+    (3) `LRU` cache simulator; 
+    (4) `FIFO` cache simulator;
+    (5) `CLOCK` cache simulator.
 ## Installation
 Under the main trace-gen directory, install `trace_gen` via pip:
 ```bash
 pip install .
 ```
-Or install the compressed release version:
+Or install the release version:
 ```bash
 pip install trace_gen-0.1.0-cp310-cp310-linux_x86_64.whl
 ```
@@ -31,11 +33,12 @@ Use TraceGenerator to generate a trace of length $n$, with accesses in $\{0 \cdo
 generator = tg.TraceGenerator(M = 1000, N = 10000)
 trace1 = generator.generate_trace(k = 5, s = 2)
 ```
-Simulate LRU & FIFO cache hit rate:
+Simulate LRU & FIFO & CLOCK cache hit rate:
 ```Python
 c = np.arange(M//100, M, M//100)
 hr_trace1_lru = [tg.sim_lru(_c, trace1) for _c in c]
 hr_trace1_fifo = [tg.sim_fifo(_c, trace1) for _c in c]
+hr_trace1_clock = [tg.sim_clock(_c, trace1) for _c in c]
 ```
 
 #### Stratified uniform IRD distriutions

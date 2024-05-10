@@ -32,10 +32,9 @@ class TraceGenerator:
         '''
         Generate random parameters for the IRT distribution.
         '''
-        # Generate n random numbers between 0 and 1
+        # num_classes random numbers between 0 and 1
         random_numbers = [random.random() for _ in range(classes)]
-        
-        # Calculate the sum of the random numbers
+       
         total = sum(random_numbers)
         
         # Normalize the numbers to make their sum 1
@@ -51,19 +50,15 @@ class TraceGenerator:
         Empirically we observe 5 classes and skewness of 3 works well.
         '''
 
-        # Generate n random numbers between 0 and 1
+        # num_classes random numbers between 0 and 1
         random_numbers = [random.random() for _ in range(classes)]
         
         # Scale the random numbers based on the skewness
         scaled_numbers = [x ** skewness for x in random_numbers]
         
-        # Calculate the sum of the scaled random numbers
         total = sum(scaled_numbers)
         
-        # Normalize the scaled numbers to make their sum 1
         normalized_numbers = [x / total for x in scaled_numbers]
-
-        random.shuffle(normalized_numbers)
 
         self.params = normalized_numbers
         
