@@ -26,7 +26,7 @@ class TraceGenerator:
         self.weights = None
         # self.trace = None # define the trace here
                           # read/write ratio?
-        self.ird = []
+        # self.ird = []
 
     def assign_weights(self, classes):
         '''
@@ -69,19 +69,19 @@ class TraceGenerator:
         '''
         num_intervals = len(self.weights)
         
-        # Calculate the width of each interval
+        # width of each interval
         interval_width = (self.M) / num_intervals
 
-        # Choose an interval based on the probabilities
+        # choose an interval based on the weights
         choice = np.random.choice(num_intervals, p=self.weights)
 
-        # Calculate the lower and upper bounds of the chosen interval
+        # calculate the lower and upper bounds of the chosen interval
         lower_bound = choice * interval_width
         upper_bound = (choice + 1) * interval_width
 
-        # Sample from the chosen uniform interval
+        # uniformly sample from the chosen interval
         ird = np.random.uniform(lower_bound, upper_bound)  
-        self.ird.append(ird)
+        # self.ird.append(ird) # this is problematic when the freq-param is specified, because in that case the sample is treated as an item directly; could use tg.iad(trace) to retrieve the irds.
         return np.array(ird, dtype=np.int32)
 
     def generate_trace(self, classes, skewness=1, param=0):
