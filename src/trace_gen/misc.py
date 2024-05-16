@@ -57,6 +57,9 @@ def gen_he(r,f,M,n):
 # trc,is_hot = gen_he(r,f,M,14*M)
 
 def gen_from_ird(f, M, n):
+    """
+    f is a function that returns a pair of (addr: int, is_hot_or_cold: bool)
+    """
     h = []
     for i in range(M):
         # code changed here:
@@ -71,14 +74,11 @@ def gen_from_ird(f, M, n):
     return np.array(a, dtype=np.int32)
 # 2 outputs f() must return a tuple (val, bool).
 
-def gen_from_ird2(f, largest_address, number_of_samples):
-    """
-    f is a function that returns a pair of (addr: int, is_hot_or_cold: bool)
-    """
+def gen_from_ird2(f, M, n):
     h = []
     a0 = 0
     # push all [t, hot_flag, a0] pair to the heap h, where t is drawn from the distribution function f();
-    while len(h) < largest_address:
+    while len(h) < M:
         t = f()
         if t != -1:
             # assign an addr to each drawn t
@@ -86,7 +86,7 @@ def gen_from_ird2(f, largest_address, number_of_samples):
             a0 += 1
 
     addrs = []
-    for _ in range(number_of_samples):  # create trace
+    for _ in range(n):  # create trace
         t = f()
         if t == -1:  # this clause won't be triggered for a synthetic trace.
             # assign a new addr that is not on the heap i.e. the map.
@@ -101,14 +101,14 @@ def gen_from_ird2(f, largest_address, number_of_samples):
     # return List[address: int], List[hot_or_cold: bool]
     return np.array(addrs, dtype=np.int32)
 
-def gen_from_both(f, largest_address, number_of_samples, param):
+def gen_from_both(f, M, n, param):
     """
-    f is a function that returns a pair of (addr: int, is_hot_or_cold: bool)
+    f is a function that samples an integer in [0, M-1].
     """
     h = []
     a0 = 0
     # push all [t, hot_flag, a0] pair to the heap h, where t is drawn from the distribution function f();
-    while len(h) < largest_address:
+    while len(h) < M:
         t = f()
         if t != -1:
             # assign an addr to each drawn t
@@ -116,7 +116,7 @@ def gen_from_both(f, largest_address, number_of_samples, param):
             a0 += 1
 
     addrs = []
-    for _ in range(number_of_samples):  # create trace
+    for _ in range(n):  # create trace
         t = f()
         if t == -1:  # this clause won't be triggered for a synthetic trace.
             # assign a new addr that is not on the heap i.e. the map.

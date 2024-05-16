@@ -41,85 +41,31 @@ hr_trace1_fifo = [tg.sim_fifo(_c, trace1) for _c in c]
 hr_trace1_clock = [tg.sim_clock(_c, trace1) for _c in c]
 ```
 
+### MRCs under various settings
+[See jupyter notebook](sample_combine_addr.ipynb)
 
-#### MRCs under various settings
-
-##### Vary the freqency parameter $p$:
+#### Vary the freqency parameter $p \in [0, 1]$:
 - When $p=0.5$, the trace is 50% freq-based and 50% ird-based, MRC convex/concave behavior shows evenly combined:
-
-```Python
-trace1 = generator.generate_trace(k = 5, s = 1, p = 0.5)
-```
-
-![](figures/trace1.png)
 
 - When $p = 1$, the trace is 100% freqency-based, MRC behaves convex.
 
-```Python
-trace2 = generator.generate_trace(k = 5, s = 1, p = 1)
-```
-![](figures/trace2.png)
-
 - When $p=0$, the trace is 100% ird-based, MRC behaves (somewhat) concave:
 
-```Python
-trace3 = generator.generate_trace(k = 5, s = 1, p = 0)
-```
-
-![](figures/trace3.png)
-
 - When $p=0.2$, the trace is 20% frequency-based and 80% ird-based, MRC behaves somewhat mixed:
+etc.
 
-```Python
-trace4 = generator.generate_trace(k = 5, s = 1, p = 0.2)
-```
-![](figures/trace4.png)
+#### Vary the skewness $s \in [0, 9]$:
 
-##### Vary the skewness $s$:
-
-- When $s=0$, the weight of each traffic class is uniform:
-```Python
-trace5 = generator.generate_trace(k = 5, s = 0, p = 0)
-```
-![](figures/trace5.png)
+- When $s=0$, the weight of each traffic class (implemented as different addr range) is uniform:
 
 - When $s=9$, the weight of each traffic class is highly skewed, the MRCs behaviors are more pronounced at any $p$:
-```Python
-trace6 = generator.generate_trace(k = 5, s = 9, p = 0)
-```
-![](figures/trace6.png)
 
-```Python
-trace7 = generator.generate_trace(k = 5, s = 9, p = 0.8)
-```
-![](figures/trace7.png)
+#### Vary the number of classes $k \in \mathbb{Z}_+$:
 
-```Python
-trace8 = generator.generate_trace(k = 5, s = 9, p = 0.3)
-```
-![](figures/trace8.png)
+- When the number of classes is high, MRCs show higher mixed convex/concave behaviors
 
-```Python
-trace9 = generator.generate_trace(k = 5, s = 9, p = 1)
-```
-![](figures/trace9.png)
-
-##### Vary the number of classes $k$:
-
-- When the number of classes is high, MRCs show higher mixed convex/concave behaviors:
-```Python
-trace10 = generator.generate_trace(k = 30, s = 9, p = 0)
-```
-![](figures/trace10.png)
-```Python
-trace11 = generator.generate_trace(k = 30, s = 9, p = 0.2)
-```
-![](figures/trace11.png)
-```Python
-trace12 = generator.generate_trace(k = 30, s = 9, p = 0.5)
-```
-![](figures/trace12.png)
-
+### MRCs of real traces
+[See jupyter notebook](real_mrc.ipynb)
 
 ### TraceReconstructor
 Use `TraceReconstructor` to reconstruct a synthetic trace of given real trace `w26` of length $n$:
