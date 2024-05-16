@@ -65,7 +65,7 @@ etc.
 - When the number of classes is high, MRCs show higher mixed convex/concave behaviors
 
 ### MRCs of real traces
-[See jupyter notebook](real_mrc.ipynb)
+[See report](/home/yirongwn/trace-gen/figures/real_mrc.pdf)
 
 ### TraceReconstructor
 Use `TraceReconstructor` to reconstruct a synthetic trace of given real trace `w26` of length $n$:

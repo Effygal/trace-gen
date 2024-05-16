@@ -134,7 +134,7 @@ def gen_from_both(f, M, n, param):
     # return List[address: int], List[hot_or_cold: bool]
     return np.array(addrs, dtype=np.int32)
 
-def sim_fifo(C, trace, raw=False):
+def sim_fifo(C, trace, raw=True):
     f = fifo.fifo(C)
     f.run(trace)
     if raw:
@@ -143,7 +143,7 @@ def sim_fifo(C, trace, raw=False):
     else:
         return f.hitrate()
 
-def sim_clock(C, trace, raw=False):
+def sim_clock(C, trace, raw=True):
     c = clock.clock(C)
     c.run(trace)
     if raw:
@@ -153,7 +153,7 @@ def sim_clock(C, trace, raw=False):
     else:
         return c.hitrate()
 
-def sim_lru(C, trace, raw=False):
+def sim_lru(C, trace, raw=True):
     l = lru.lru(C)
     l.run(trace)
     if raw:
