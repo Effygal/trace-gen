@@ -1,13 +1,13 @@
 # trace_gen ![MIT](https://img.shields.io/badge/license-MIT-blue.svg) 
-**[A prototype library that generates realistic block IO workloads](https://https://github.com/Effygal/zns-obj)**
+**[A library that generates realistic block I/O workloads](https://https://github.com/Effygal/trace-gen)**
 ## Status
 
-Generates traces of 1D integer array that represent read address accesses;
+Generates traces of 1D integer array that represent address accesses;
 
 Modules:
-    (1) `TraceGenerator`---generate a synthetic trace with a list of Poisson rates that add up to one as input;
-    (2) `TraceReconstructor`---generate synthetic traces with a real-world trace as input. Supports inter-reference time-based reconstruction and frequency-based reconstruction;
-    (3) `LRU` cache simulator; 
+    (1) `TraceGenerator`---generate synthetic traces from scratch with specified parameters;
+    (2) `TraceReconstructor`---generate synthetic traces that are reconstructed based on a given real-world trace; supports inter-reference distance-based reconstruction and frequency-based reconstruction;
+    (3) `LRU` cache simulator (novel); 
     (4) `FIFO` cache simulator;
     (5) `CLOCK` cache simulator.
 ## Installation
@@ -15,7 +15,7 @@ Under the main trace-gen directory, install `trace_gen` via pip:
 ```bash
 pip install .
 ```
-Or install the release version:
+Or install the release/distribute version:
 ```bash
 pip install trace_gen-0.1.0-cp310-cp310-linux_x86_64.whl
 ```
@@ -28,10 +28,10 @@ import trace_gen as tg
 ```
 
 ### TraceGenerator
-Use TraceGenerator to generate a trace of length $n$, with accesses in $\{0 \cdots M-1\}$, with $k$ uniform inter-reference distance (IRD) classes, and with skewness $s$ (optional):
+Use TraceGenerator to generate a trace of length $n$, with reference addresses in $\{0 \cdots M-1\}$, with $k$ traffic classes, with skewness $s$, and frequency-dependent parameter $p$:
 ```Python
-generator = tg.TraceGenerator(M = 1000, N = 10000)
-trace1 = generator.generate_trace(k = 5, s = 2)
+generator = tg.TraceGenerator(M = 100, n = 10000)
+trace1 = generator.generate_trace(k = 5, s = 1, p = 0.5)
 ```
 Simulate LRU & FIFO & CLOCK cache hit rate:
 ```Python
@@ -41,23 +41,84 @@ hr_trace1_fifo = [tg.sim_fifo(_c, trace1) for _c in c]
 hr_trace1_clock = [tg.sim_clock(_c, trace1) for _c in c]
 ```
 
-#### Stratified uniform IRD distriutions
-- Stratification by specifying number of IRD classes and skewness (optional).
 
-- MRCs and corresponding IRD distribution under different settings:
-![](figures/class10.png)
-<!-- ![](figures/class10_2.png) -->
-![](figures/class5.png)
-![](figures/class4.png)
+#### MRCs under various settings
 
-- MRCs and corresponding IRD distribution under different settings (with skewness specification):
-![](figures/class10skew2.png)
-![](figures/class5skew3.png)
-![](figures/class5skew2.png)
-![](figures/class5skew1.png)
-![](figures/class4skew3.png)
-![](figures/class4skew2.png)
-![](figures/class4skew1.png)
+##### Vary the freqency parameter $p$:
+- When $p=0.5$, the trace is 50% freq-based and 50% ird-based, MRC convex/concave behavior shows evenly combined:
+
+```Python
+trace1 = generator.generate_trace(k = 5, s = 1, p = 0.5)
+```
+
+![](figures/trace1.png)
+
+- When $p = 1$, the trace is 100% freqency-based, MRC behaves convex.
+
+```Python
+trace2 = generator.generate_trace(k = 5, s = 1, p = 1)
+```
+![](figures/trace2.png)
+
+- When $p=0$, the trace is 100% ird-based, MRC behaves (somewhat) concave:
+
+```Python
+trace3 = generator.generate_trace(k = 5, s = 1, p = 0)
+```
+
+![](figures/trace3.png)
+
+- When $p=0.2$, the trace is 20% frequency-based and 80% ird-based, MRC behaves somewhat mixed:
+
+```Python
+trace4 = generator.generate_trace(k = 5, s = 1, p = 0.2)
+```
+![](figures/trace4.png)
+
+##### Vary the skewness $s$:
+
+- When $s=0$, the weight of each traffic class is uniform:
+```Python
+trace5 = generator.generate_trace(k = 5, s = 0, p = 0)
+```
+![](figures/trace5.png)
+
+- When $s=9$, the weight of each traffic class is highly skewed, the MRCs behaviors are more pronounced at any $p$:
+```Python
+trace6 = generator.generate_trace(k = 5, s = 9, p = 0)
+```
+![](figures/trace6.png)
+
+```Python
+trace7 = generator.generate_trace(k = 5, s = 9, p = 0.8)
+```
+![](figures/trace7.png)
+
+```Python
+trace8 = generator.generate_trace(k = 5, s = 9, p = 0.3)
+```
+![](figures/trace8.png)
+
+```Python
+trace9 = generator.generate_trace(k = 5, s = 9, p = 1)
+```
+![](figures/trace9.png)
+
+##### Vary the number of classes $k$:
+
+- When the number of classes is high, MRCs show higher mixed convex/concave behaviors:
+```Python
+trace10 = generator.generate_trace(k = 30, s = 9, p = 0)
+```
+![](figures/trace10.png)
+```Python
+trace11 = generator.generate_trace(k = 30, s = 9, p = 0.2)
+```
+![](figures/trace11.png)
+```Python
+trace12 = generator.generate_trace(k = 30, s = 9, p = 0.5)
+```
+![](figures/trace12.png)
 
 
 ### TraceReconstructor

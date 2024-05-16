@@ -56,7 +56,7 @@ def gen_he(r,f,M,n):
     return np.array(a, dtype=np.int32), np.array(is_hot, dtype=bool)
 # trc,is_hot = gen_he(r,f,M,14*M)
 
-def gen_from_iad(f, M, n):
+def gen_from_ird(f, M, n):
     h = []
     for i in range(M):
         # code changed here:
@@ -71,7 +71,7 @@ def gen_from_iad(f, M, n):
     return np.array(a, dtype=np.int32)
 # 2 outputs f() must return a tuple (val, bool).
 
-def gen_from_iad2(f, largest_address, number_of_samples):
+def gen_from_ird2(f, largest_address, number_of_samples):
     """
     f is a function that returns a pair of (addr: int, is_hot_or_cold: bool)
     """
@@ -97,6 +97,39 @@ def gen_from_iad2(f, largest_address, number_of_samples):
             t0, addr = h[0]
             addrs.append(addr)
             heapq.heapreplace(h, [t0+t, addr])
+
+    # return List[address: int], List[hot_or_cold: bool]
+    return np.array(addrs, dtype=np.int32)
+
+def gen_from_both(f, largest_address, number_of_samples, param):
+    """
+    f is a function that returns a pair of (addr: int, is_hot_or_cold: bool)
+    """
+    h = []
+    a0 = 0
+    # push all [t, hot_flag, a0] pair to the heap h, where t is drawn from the distribution function f();
+    while len(h) < largest_address:
+        t = f()
+        if t != -1:
+            # assign an addr to each drawn t
+            heapq.heappush(h, [t, a0])
+            a0 += 1
+
+    addrs = []
+    for _ in range(number_of_samples):  # create trace
+        t = f()
+        if t == -1:  # this clause won't be triggered for a synthetic trace.
+            # assign a new addr that is not on the heap i.e. the map.
+            addrs.append(a0)
+            a0 += 1
+
+        else: 
+            if random.random() < param: # treat the sample as a reference directly
+                addrs.append(t)
+            else:  # treat the sample as a ird
+                t0, addr = h[0]
+                addrs.append(addr)
+                heapq.heapreplace(h, [t0+t, addr])
 
     # return List[address: int], List[hot_or_cold: bool]
     return np.array(addrs, dtype=np.int32)
