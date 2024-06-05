@@ -18,22 +18,26 @@ from trace_gen.unroll import *
 class TraceReconstructor:
     def __init__(self, trace):
         self.trace = trace
-        self.pack_trace()
-        self.items, self.counts = np.unique(self.trace, return_counts=True)
-        self.cdf = np.cumsum(self.counts) / len(self.trace)
+        self.items, self.counts = None, None
+        self.cdf = None
         self.irm_trace = None
-        self.ird = None
-        self.M = np.sum(self.counts > 3)
+        self.irds = None
+        self.M = None
         self.ird_trace = None
         
-    def pack_trace(self):
-        self.trace[:, 0] += 7
-        self.trace = squash(unroll(self.trace // 8))       
-        
-    def get_cdf(self):
+    # def pack_trace(self):
+    #     self.trace[:, 0] += 7
+    #     self.trace = squash(unroll(self.trace // 8))       
+
+    def get_counts(self):
         self.items, self.counts = np.unique(self.trace, return_counts=True)
+        self.M = np.sum(self.counts > 3)
+
+    def get_cdf(self):
+        if self.counts is None:
+            self.get_counts() 
         self.cdf = np.cumsum(self.counts) / len(self.trace)
-        
+
     def generate_irm_trace(self, length):
         if self.cdf is None:
             self.get_cdf()
@@ -48,14 +52,18 @@ class TraceReconstructor:
         ird = ird[ird > -1]
         n_single = int(r_single * len(ird))
         ird = np.append(ird, np.ones(n_single)*-1)
-        self.ird = ird
+        self.irds = ird
         
     def sample_ird(self):
-        if self.ird is None:
+        if self.irds is None:
             self.get_irds()
-        return np.random.choice(self.ird)
+        return np.random.choice(self.irds)
         
     def generate_ird_trace(self, length):
+        if self.irds is None:
+            self.get_irds()
+        if self.M is None:
+            self.get_M()
         self.ird_trace = gen_from_ird2(self.sample_ird, self.M, length)
         return self.ird_trace
     
