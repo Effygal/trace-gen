@@ -53,7 +53,7 @@ class lru:
         a, m, c = self.data()
         return 1 - (m - self.C) / (a - c)
 
-    def data(self) -> tuple:
+    def data(self) -> tuple: # return (accesses, misses, cachefill)
         return _lru.lru_data(self.l)
 
     def queue_raw_stats(self):
