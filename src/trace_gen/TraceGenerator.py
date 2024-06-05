@@ -45,25 +45,25 @@ class TraceGenerator:
         
     #     return normalized_numbers
     
-    # def assign_weights_with_skew(self, classes=5, skewness=1):
-    #     '''
-    #     Generate random parameters for the ird distribution with skewness.
-    #     '''
-    #     self.k = classes
-    #     self.s = skewness
-    #     # Generate random numbers with a decreasing trend
-    #     random_numbers = [random.random() * (1 - i / classes) for i in range(classes)]
+    def assign_weights_with_skew(self, classes=5, skewness=1):
+        '''
+        Generate random parameters for the ird distribution with skewness.
+        '''
+        self.k = classes
+        self.s = skewness
+        # Generate random numbers with a decreasing trend
+        random_numbers = [random.random() * (1 - i / classes) for i in range(classes)]
 
-    #     # Scale the random numbers based on the skewness
-    #     scaled_numbers = [x ** skewness for x in random_numbers]
+        # Scale the random numbers based on the skewness
+        scaled_numbers = [x ** skewness for x in random_numbers]
         
-    #     total = sum(scaled_numbers)
+        total = sum(scaled_numbers)
         
-    #     normalized_numbers = [x / total for x in scaled_numbers]
+        normalized_numbers = [x / total for x in scaled_numbers]
 
-    #     self.weights = normalized_numbers
+        self.weights = normalized_numbers
         
-    #     return normalized_numbers
+        return normalized_numbers
     
     def sample_ird(self):
         '''
@@ -106,7 +106,7 @@ class TraceGenerator:
         sample = np.random.uniform(lower_bound, upper_bound)
         return sample
 
-    def generate_trace(self, ird_weights, zipf_frac, zipf_a):
+    def generate_trace(self, ird_weights, zipf_frac=0, zipf_a=1):
         '''
         Generate a synthetic trace
         param indicates the probability of treating the sample as a reference directly, i.e., to what extent the trace is frequency-based.
