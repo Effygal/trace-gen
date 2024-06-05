@@ -101,9 +101,9 @@ def gen_from_ird2(f, M, n):
     # return List[address: int], List[hot_or_cold: bool]
     return np.array(addrs, dtype=np.int32)
 
-def gen_from_both(f, M, n, param):
+def gen_from_both(f, g,  M, n, irm_frac=0):
     """
-    f is a function that samples an integer in [0, M-1].
+    f is a function that samples an integer ird in [0, M-1].
     """
     h = []
     a0 = 0
@@ -117,16 +117,16 @@ def gen_from_both(f, M, n, param):
 
     addrs = []
     for _ in range(n):  # create trace
-        t = f()
-        if t == -1:  # this clause won't be triggered for a synthetic trace.
-            # assign a new addr that is not on the heap i.e. the map.
-            addrs.append(a0)
-            a0 += 1
-
-        else: 
-            if random.random() < param: # treat the sample as a reference directly
-                addrs.append(t)
-            else:  # treat the sample as a ird
+        if random.random() < irm_frac: # sample a reference addr directly
+            a = g()
+            addrs.append(a) 
+        else:
+            t = f()
+            if t == -1:  # currently this won't be triggered for a generated synthetic trace (might fix later).
+                # assign a new addr that is not on the heap i.e. the map.
+                addrs.append(a0)
+                a0 += 1
+            else:  # the sample is an ird
                 t0, addr = h[0]
                 addrs.append(addr)
                 heapq.heapreplace(h, [t0+t, addr])
