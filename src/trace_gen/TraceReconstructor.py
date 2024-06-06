@@ -63,7 +63,7 @@ class TraceReconstructor:
         if self.irds is None:
             self.get_irds()
         if self.M is None:
-            self.get_M()
+            self.get_counts()
         self.ird_trace = gen_from_ird2(self.sample_ird, self.M, length)
         return self.ird_trace
     

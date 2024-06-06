@@ -28,23 +28,21 @@ import trace_gen as tg
 ```
 
 ### TraceGenerator
-Use TraceGenerator to generate a trace of length $n$, with reference addresses in $\{0 \cdots M-1\}$, with $k$ traffic classes, with skewness $s$, and frequency-dependent parameter $p$:
+Use TraceGenerator to generate a trace of length $n$, with reference addresses in $\{0 \cdots M-1\}$, with $weights$--an vector of weights assigned to each IRD class, adds up to be 1, the IRM fraction $p \in [0, 1]$, which represents the fraction of the trace that follows IRM, and the zipf parameter $a$ that defines the IRM part of the trace, assume a zipf-like distribution with inverse power of $a \in (1, \infty)$:
 ```Python
 generator = tg.TraceGenerator(M = 100, n = 10000)
-trace1 = generator.generate_trace(k = 5, s = 1, p = 0.5)
+trace1 = g1.generate_trace(weights, p=0.2, a=1)
 ```
-Simulate LRU & FIFO & CLOCK cache hit rate:
-```Python
-c = np.arange(M//100, M, M//100)
-hr_trace1_lru = [tg.sim_lru(_c, trace1) for _c in c]
-hr_trace1_fifo = [tg.sim_fifo(_c, trace1) for _c in c]
-hr_trace1_clock = [tg.sim_clock(_c, trace1) for _c in c]
+we can assign weights manually, or auto-assign weights with specified number of classes $k$ and skewness $s$:
+```python
+weights = g1.assign_weights_with_skew(k=30, s=1)
+trace2 = g1.generate_trace(weights, p=0.2, a=1)
 ```
 
 ### MRCs under various settings
 [See jupyter notebook](sample_combine_addr.ipynb)
 
-#### Vary the freqency parameter $p \in [0, 1]$:
+#### Vary the IRM fraction $p \in [0, 1]$:
 - When $p=0.5$, the trace is 50% freq-based and 50% ird-based, MRC convex/concave behavior shows evenly combined:
 
 - When $p = 1$, the trace is 100% freqency-based, MRC behaves convex.
@@ -54,7 +52,7 @@ hr_trace1_clock = [tg.sim_clock(_c, trace1) for _c in c]
 - When $p=0.2$, the trace is 20% frequency-based and 80% ird-based, MRC behaves somewhat mixed:
 etc.
 
-#### Vary the skewness $s \in [0, 9]$:
+#### Vary the IRD weight skewness $s \in [0, 9]$:
 
 - When $s=0$, the weight of each traffic class (implemented as different addr range) is uniform:
 
@@ -68,18 +66,17 @@ etc.
 [See report](figures/real_mrc.pdf)
 
 ### TraceReconstructor
-Use `TraceReconstructor` to reconstruct a synthetic trace of given real trace `w26` of length $n$:
+Use `TraceReconstructor` to pull out statistics and reconstruct synthetic traces of given real trace `trc` of length $n$, assume `trc` is block-addressable:
 ```Python
-w26 = np.loadtxt(f'/opt/traces/w26_r.txt', dtype=np.int32)
-w26_reconstructor = tg.TraceReconstructor(w26)
+trc_reconstructor = tg.TraceReconstructor(trc)
 ```
-Inter-reference time-based reconstruction:
-```Python
-w26_irt_reconstructed = w26_reconstructor.generate_irt_trace(n=100000)
+Inter-reference distance-based reconstruction:
+```python
+trc_irt_reconstructed = trc_reconstructor.generate_irt_trace(n=100000)
 ```
 Frequency-based reconstruction:
-```Python
-w26_irm_reconstructed = w26_reconstructor.generate_irm_trace(n=100000)
+```python
+trc_irm_reconstructed = trc_reconstructor.generate_irm_trace(n=100000)
 ```
 <!-- ### HASH-based sampling
 SHARDS item sampling:
@@ -126,6 +123,14 @@ For clock there is a 4th return value, which is the number of items which were r
 
 There are some helper functions in `misc.py` - `sim_lru(C,trace,raw=False)`, and equivalently for FIFO and CLOCK. If `raw=False`, it returns adjusted hitrate (i.e. ignoring accesses while the cache was filling, this would cause non-monotone in LRU MRCs), while if `raw=True` it just calculates total hits vs accesses.
 
+#### Simulate LRU & FIFO & CLOCK cache hit rate:
+`tg` provides wrapper simulators that can be used as follows: 
+```Python
+c = np.arange(M//100, M, M//100)
+hr_trace1_lru = [tg.sim_lru(_c, trace1) for _c in c]
+hr_trace1_fifo = [tg.sim_fifo(_c, trace1) for _c in c]
+hr_trace1_clock = [tg.sim_clock(_c, trace1) for _c in c]
+```
 ### iad2.py
 Calculate inter-arrival distances
 
@@ -162,21 +167,12 @@ R 16 95513200
 R 16 926936192
 ```
 
-We're only looking at the read operations. The easiest way to load them into python is to grep for records containing 'R', delete the first two characters on each line, then load them as n x 2 numpy arrays. This is time consuming, so I did this once and saved files named `w01.reads.pickle`, etc. that can be easily loaded into Python using the `pickle` library:
-
+We're only looking at the read operations. The easiest way to load them into python is to grep for records containing 'R', delete the first two characters on each line, then load them as n x 2 numpy arrays. This is time consuming, so I did this once and saved files named `/opt/traces/w01_r.txt`, etc. that can be easily loaded into Python using the `numpy` library:
+```python
+w01 = np.loadtxt('/opt/traces/w01_r.txt',dtype=np.int32)
+w01[:,0] += 7
+w01 = tg.squash(tg.unroll(w01//8))
 ```
-import pickle
-fp = open('w01.reads.pickle','rb')
-w01 = pickle.load(fp)
-fp.close()
-```
-
-or alternately:
-```
-from misc import *
-w01 = from_pickle('w01.reads.pickle')
-```
-
 Once you have these loaded in Python you need to convert them into a form that the simulators can use. To use 4K pages as the unit you need to divide the addresses and lengths by 8 (not 4096 because the original traces come with 512-byte granularity), then you need to "unroll" the length/address pairs. You can do that in Python, but the `unroll` package does it faster
 
 A simple example to show its operation:
@@ -189,7 +185,7 @@ array([ 5,  6, 10, 11, 12, 13], dtype=int32)
 
 In practice you'll use it like this - note that we're using integer divide (`//`) to divide addresses and lengths by 8. In theory we should be rounding lengths up if they're not a multiple of 8, but there don't seem to be many of these in the read operations. (unlike writes)
 
-```
+```python
 trace = np.loadtxt(file_path, dtype=np.int32)
 trace[:, 0] += 7
 trace = tg.unroll(trace // 8)
@@ -199,7 +195,7 @@ Finally we may want to subsample a trace by only selecting certain addresses; if
 
 Here we're selecting only addresses which equal 0 mod 17:
 
-```
+```python
 trace = tg.squash(trace[trace%17 == 0])
 ```
 
@@ -209,7 +205,7 @@ trace = tg.squash(trace[trace%17 == 0])
 Under [pjd-rz:/mnt/sda/alibaba_block_traces_2020](pjd-rz:/mnt/sda/alibaba_block_traces_2020)
 The trace is quite long, combines all I/O operations recorded in one month's time frame, across 1000 sampled volumes (hard drives); volume number from 0 to 999.
 I splited the trace under each volume (still monstrously long). Addrs are 64-bit integer, offset and LBAs are in byte, therefore unrolling them with:
-```
+```python
 trace = np.loadtxt(file_path, dtype=np.int64)
 trace[:, 0] += 4095
 trace = tg.unroll(trace // 4096)
