@@ -103,7 +103,11 @@ def gen_from_ird2(f, M, n):
 
 def gen_from_both(f, g,  M, n, irm_frac=0):
     """
-    f is a function that samples an integer ird in [0, M-1].
+    f is a function that samples an integer represents an ird in [0, M-1];
+    g is a function that samples an integer represents an item in [0, M-1];
+    M is the size of the address space;
+    n is the length of the trace;
+    irm_frac is the fraction of the trace that follows IRM.
     """
     h = []
     a0 = 0

@@ -12,45 +12,28 @@ from trace_gen.misc import *
 import random
 
 class TraceGenerator:
-    def __init__(self, M, n, ird_weights=None, zipf_frac=None, zipf_a=None):
+    def __init__(self, M, n, ird_weights=None, irm_frac=None, zipf_a=None):
         '''
         M: set size of items
         n: trace length
-        freq_dist: item frequency distribution (zipfian, etc.)
-        ird_dist: inter-reference distance distribution (hyperexponential, etc.)
-        assume zipfian, 0.2 frac are to 0.8 frac addrs.
+        ird_weights: an vector of weights assigned to each IRD class
+        irm_frac: fraction of the generated trace that follows IRM (item drawn from a zipf-like distribution)   
+        zipf_a: parameter for the zipf distribution, only relevant if irm_frac > 0
         '''
         self.M = M
         self.n = n
         self.ird_weights = ird_weights
         self.trace = None # define the trace here
         self.zipf_a = zipf_a
-        self.zipf_frac = zipf_frac
-
-    # def assign_weights(self, classes):
-    #     '''
-    #     Generate random parameters for the ird distribution.
-    #     '''
-    #     # Generate random numbers with a decreasing trend
-    #     self.k = classes
-
-    #     random_numbers = [random.random() * (1 - i / classes) for i in range(classes)]
-    
-    #     total = sum(random_numbers)
-        
-    #     # Normalize the numbers to make their sum 1
-    #     normalized_numbers = np.array([x / total for x in random_numbers])
-
-    #     self.weights = normalized_numbers
-        
-    #     return normalized_numbers
+        self.irm_frac =irm_frac 
     
     def assign_weights_with_skew(self, classes=5, skewness=1):
         '''
-        Generate random parameters for the ird distribution with skewness.
+        Auto assign weight to each IRD classes, given the number of classes and the skewness on the weights.
         '''
         self.k = classes
         self.s = skewness
+
         # Generate random numbers with a decreasing trend
         random_numbers = [random.random() * (1 - i / classes) for i in range(classes)]
 
@@ -91,33 +74,49 @@ class TraceGenerator:
     
     def sample_zipf(self):
         '''
-        Sample addr from the set of different uniform distributions with weights with inverse power zipf_a.
+        Sample an address from a set of different uniform distributions with weights following an inverse power Zipf distribution.
         '''
         if self.zipf_a is None:
             raise ValueError("Please assign a value to the zipf_a parameter first.")
         
         num_intervals = len(self.ird_weights)
-        interval_width = (self.M) // num_intervals
-        p = 1.0 / np.power(np.arange(1, num_intervals+1), self.zipf_a)
-        p /= np.sum(p)
+        interval_width = self.M // num_intervals
+        
+        # Calculate Zipf probabilities
+        p = 1.0 / np.power(np.arange(1, num_intervals + 1), self.zipf_a)
+        p /= np.sum(p)  # Normalize to sum to 1
+        
+        # Select an interval based on Zipf probabilities
         choice_interval = np.random.choice(num_intervals, p=p)
+        
+        # Determine bounds of the chosen interval
         lower_bound = choice_interval * interval_width
         upper_bound = (choice_interval + 1) * interval_width
+        
+        # Sample uniformly within the chosen interval
         sample = np.random.uniform(lower_bound, upper_bound)
+        
         return sample
 
-    def generate_trace(self, ird_weights, zipf_frac=0, zipf_a=1):
+    def generate_trace(self, ird_weights, irm_frac=0, zipf_a=1):
         '''
-        Generate a synthetic trace
-        param indicates the probability of treating the sample as a reference directly, i.e., to what extent the trace is frequency-based.
+        Generate a synthetic trace;
+        irm_frac specifies the fraction of the trace that follows IRM (item drawn from a zipf-like distribution);
+        zipf_a defines the zipf-like distribution parameter, only relevant if irm_frac > 0.
         '''
         self.ird_weights = ird_weights
-        self.zipf_frac = zipf_frac
+        self.irm_frac =irm_frac 
         self.zipf_a = zipf_a
 
-        # trace = gen_from_ird2(self.sample, self.M, self.n)
-        trace = gen_from_both(self.sample_ird, self.sample_zipf, self.M, self.n, zipf_frac)
+        trace = gen_from_both(self.sample_ird, self.sample_zipf, self.M, self.n, irm_frac)
         self.trace = trace
         return trace
+
+    def generate_trace_auto_weights(self, classes=5, skewness=1, irm_frac=0, zipf_a=1):
+        '''
+        Generate a synthetic trace with automatically assigned weights.
+        '''
+        ird_weights = self.assign_weights_with_skew(classes, skewness)
+        return self.generate_trace(ird_weights, irm_frac, zipf_a)
     
    
