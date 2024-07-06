@@ -120,10 +120,12 @@ def gen_from_both(f, g,  M, n, irm_frac=0):
             a0 += 1
 
     addrs = []
+    is_irm = []
     for _ in range(n):  # create trace
         if random.random() < irm_frac: # sample a reference addr directly
             a = g()
             addrs.append(a) 
+            is_irm.append(True)
         else:
             t = f()
             if t == -1:  # currently this won't be triggered for a generated synthetic trace (might fix later).
@@ -134,9 +136,10 @@ def gen_from_both(f, g,  M, n, irm_frac=0):
                 t0, addr = h[0]
                 addrs.append(addr)
                 heapq.heapreplace(h, [t0+t, addr])
+            is_irm.append(False)
 
     # return List[address: int], List[hot_or_cold: bool]
-    return np.array(addrs, dtype=np.int32)
+    return np.array(addrs, dtype=np.int32), np.array(is_irm, dtype=bool)
 
 def sim_fifo(C, trace, raw=True):
     f = fifo.fifo(C)
