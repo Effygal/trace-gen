@@ -28,15 +28,73 @@ import trace_gen as tg
 ```
 
 ### TraceGenerator
-Use TraceGenerator to generate a trace of length $n$, with reference addresses in $\{0 \cdots M-1\}$, with $weights$--an vector of weights assigned to each IRD class, adds up to be 1, the IRM fraction $p \in [0, 1]$, which represents the fraction of the trace that follows IRM, and the zipf parameter $a$ that defines the IRM part of the trace, assume a zipf-like distribution with inverse power of $a \in (1, \infty)$:
+Use TraceGenerator to generate a trace of length $n$, with reference addresses in $\{0 \cdots M-1\}$, with `weights`--an vector of weights assigned to each IRD class, adds up to be 1, the IRM fraction $p_{irm} \in [0, 1]$, which represents the fraction of the trace that follows IRM (draw items from a zipf-like distribution), and the zipf parameter $a$ that defines the zipf-like distribution with inverse power of $a \in (1, \infty)$:
 ```Python
 generator = tg.TraceGenerator(M = 100, n = 10000)
-trace1 = g1.generate_trace(weights, p=0.2, a=1)
+trace1 = g1.generate_trace(weights, p_irm=0.2, zipf_a=2)
 ```
-we can assign weights manually, or auto-assign weights with specified number of classes $k$ and skewness $s$:
+we can assign weights manually, or auto-assign weights with specified number of classes $k$ and skewness $s$ (for conrrolled-experiment purpose):
 ```python
 weights = g1.assign_weights_with_skew(k=30, s=1)
-trace2 = g1.generate_trace(weights, p=0.2, a=1)
+trace2 = g1.generate_trace(weights, p_irm=0.2, zipf_a=2)
+```
+or directly generate the trace with auto-assigned IRD weights:
+```Python
+trace3 = g1.generate_trace_auto_weights(k=30, s=9, p_irm=0.2, zipf_a=2)
+```
+
+#### Implementation of TraceGenerator
+```Python
+
+def gen_from_both(f, g,  M, n, irm_frac=0):
+    """
+    f is a function that samples an integer represents an ird in [0, M-1];
+    g is a function that samples an integer represents an item in [0, M-1];
+    M is the size of the address space;
+    n is the length of the trace;
+    irm_frac is the fraction of the trace that follows IRM.
+    """
+    h = []
+    a0 = 0
+    # push all [t, hot_flag, a0] pair to the heap h, where t is drawn from the distribution function f();
+    while len(h) < M:
+        t = f()
+        if t != -1:
+            # assign an addr to each drawn t
+            heapq.heappush(h, [t, a0])
+            a0 += 1
+
+    addrs = []
+    for _ in range(n):  # create trace
+        if random.random() < irm_frac: # sample a reference addr (an item) directly
+            a = g()
+            addrs.append(a) 
+        else:
+            t = f()
+            if t == -1:  # currently this won't be triggered for a generated synthetic trace (might fix later).
+                # assign a new addr that is not on the heap i.e. the map.
+                addrs.append(a0)
+                a0 += 1
+            else:  # the sample is an ird
+                t0, addr = h[0]
+                addrs.append(addr)
+                heapq.heapreplace(h, [t0+t, addr])
+
+    return np.array(addrs, dtype=np.int32)
+
+ def generate_trace(self, ird_weights, irm_frac=0.2, zipf_a=2):
+        '''
+        Generate a synthetic trace;
+        irm_frac specifies the fraction of the trace that follows IRM (item drawn from a zipf-like distribution);
+        zipf_a defines the zipf-like distribution parameter, only relevant if irm_frac > 0.
+        '''
+        self.ird_weights = ird_weights
+        self.irm_frac =irm_frac 
+        self.zipf_a = zipf_a
+
+        trace = gen_from_both(self.sample_ird, self.sample_zipf, self.M, self.n, irm_frac)
+        self.trace = trace
+        return trace
 ```
 
 ### MRCs under various settings
