@@ -42,7 +42,8 @@ python_sources = [
   'src/trace_gen/TraceReconstructor.py',
   'src/trace_gen/TraceGenerator.py',
   'src/trace_gen/fifo_wrapper.py',
-  'src/trace_gen/clock_wrapper.py'
+  'src/trace_gen/clock_wrapper.py',
+  'src/trace_gen/arc_wrapper.py'
 ]
 
 ## Extension modules
@@ -81,6 +82,14 @@ module = py.extension_module(
 module = py.extension_module(
   '_clock',      
   sources: ['src/trace_gen/clock.cpp'],
+  include_directories: includes,
+  install: true,
+  cpp_args: _cpp_args
+)
+
+module = py.extension_module(
+  '_arc',      
+  sources: ['src/trace_gen/arc.cpp'],
   include_directories: includes,
   install: true,
   cpp_args: _cpp_args

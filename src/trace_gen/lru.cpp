@@ -23,7 +23,7 @@ class LRU {
  
 	int M = 0;
 	int C = 0;
-	std::vector<int> map;
+	std::vector<int> map; // track item position in cache
 	int tail = 0, head = 0;
 	std::vector<int> cache;
 
@@ -57,10 +57,10 @@ public:
 	void verify(void)
 	{
 		for (int i = tail; i < head; i++)
-			assert(cache[i] == -1 || map[cache[i]] == i);
+			assert(cache[i] == -1 || map[cache[i]] == i); //assert invalid cache entry or item has been record correctly in map
 		for (unsigned int i = 0; i < map.size(); i++)
 		{
-			assert(map[i] == -1 || cache[map[i]] == i);
+			assert(map[i] == -1 || cache[map[i]] == i); //assert invalid map entry or item in map and has correct record of index in cache 
 			assert(map[i] < head);
 		}
 	}
@@ -75,7 +75,7 @@ public:
 		return n;
 	}
 
-	void pull(int addr)
+	void pull(int addr) //erase item record
 	{
 		assert(map[addr] != -1);
 		cache[map[addr]] = -1;
@@ -83,7 +83,7 @@ public:
 		len--;
 	}
 
-	int pop(void)
+	int pop(void) //remove item from tail
 	{
 		while (cache[tail] == -1)
 			tail++;
@@ -94,7 +94,7 @@ public:
 
 	void push(int addr)
 	{
-		if (head >= 2 * C)
+		if (head >= 2 * C) 
 		{
 			int i, j;
 			for (i = 0, j = 0; i < head; i++)
@@ -106,7 +106,7 @@ public:
 			tail = 0;
 			head = j;
 		}
-		map[addr] = head;
+		map[addr] = head; //insert item from head, track index
 		cache[head++] = addr;
 		len++;
 	}
@@ -121,7 +121,7 @@ public:
 		if (map[addr] == -1)
 			n_miss++;
 		else
-			pull(addr);
+			pull(addr); //hit erase
 		push(addr);
 		if (len > C)
 			pop();

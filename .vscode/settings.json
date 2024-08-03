@@ -5,7 +5,8 @@
         "string": "cpp",
         "string_view": "cpp",
         "stdexcept": "cpp",
-        "new": "cpp"
+        "new": "cpp",
+        "tuple": "cpp"
     },
     "C_Cpp.default.configurationProvider": "mesonbuild.mesonbuild"
 }
