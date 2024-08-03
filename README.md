@@ -30,75 +30,23 @@ import trace_gen as tg
 ### TraceGenerator
 Use TraceGenerator to generate a trace of length $n$, with reference addresses in $\{0 \cdots M-1\}$, with `weights`--an vector of weights assigned to each IRD class, adds up to be 1, the IRM fraction $p_{irm} \in [0, 1]$, which represents the fraction of the trace that follows IRM (draw items from a zipf-like distribution), and the zipf parameter $a$ that defines the zipf-like distribution with inverse power of $a \in (1, \infty)$:
 ```Python
-generator = tg.TraceGenerator(M = 100, n = 10000)
-trace1 = g1.generate_trace(weights, p_irm=0.2, zipf_a=2)
+g1 = tg.TraceGenerator(M = 100, n = 10000)
+g1.set_zipf_a(a = 2)
+g1.set_ird_weights([0.79992, 0.0001, 0.19998])
+trace1 = g1.generate_trace(p_irm=0.2, irm_type='zipf')
 ```
-we can assign weights manually, or auto-assign weights with specified number of classes $k$ and skewness $s$ (for conrrolled-experiment purpose):
+we can assign weights manually with `set_ird_weights()`, or auto-assign weights with specified number of classes $k$ and skewness $s$ (e.g., for controlled-experiment purpose):
 ```python
-weights = g1.assign_weights_with_skew(k=30, s=1)
-trace2 = g1.generate_trace(weights, p_irm=0.2, zipf_a=2)
+weights = g1.assign_weights_with_k_s(k=15, s=5)
+trace1 = g1.generate_trace(p_irm=0.2, irm_type='zipf')
+trace2 = g1.generate_trace(p_irm=0.2, irm_type='pareto')
+trace3 = g1.generate_trace(p_irm=0.2, irm_type='normal') 
+trace4 = g1.generate_trace(p_irm=0.2, irm_type='uniform')
 ```
-or directly generate the trace with auto-assigned IRD weights:
-```Python
-trace3 = g1.generate_trace_auto_weights(k=30, s=9, p_irm=0.2, zipf_a=2)
-```
 
-#### Implementation of TraceGenerator
-```Python
-
-def gen_from_both(f, g,  M, n, irm_frac=0):
-    """
-    f is a function that samples an integer represents an ird in [0, M-1];
-    g is a function that samples an integer represents an item in [0, M-1];
-    M is the size of the address space;
-    n is the length of the trace;
-    irm_frac is the fraction of the trace that follows IRM.
-    """
-    h = []
-    a0 = 0
-    # push all [t, hot_flag, a0] pair to the heap h, where t is drawn from the distribution function f();
-    while len(h) < M:
-        t = f()
-        if t != -1:
-            # assign an addr to each drawn t
-            heapq.heappush(h, [t, a0])
-            a0 += 1
-
-    addrs = []
-    for _ in range(n):  # create trace
-        if random.random() < irm_frac: # sample a reference addr (an item) directly
-            a = g()
-            addrs.append(a) 
-        else:
-            t = f()
-            if t == -1:  # currently this won't be triggered for a generated synthetic trace (might fix later).
-                # assign a new addr that is not on the heap i.e. the map.
-                addrs.append(a0)
-                a0 += 1
-            else:  # the sample is an ird
-                t0, addr = h[0]
-                addrs.append(addr)
-                heapq.heapreplace(h, [t0+t, addr])
-
-    return np.array(addrs, dtype=np.int32)
-
- def generate_trace(self, ird_weights, irm_frac=0.2, zipf_a=2):
-        '''
-        Generate a synthetic trace;
-        irm_frac specifies the fraction of the trace that follows IRM (item drawn from a zipf-like distribution);
-        zipf_a defines the zipf-like distribution parameter, only relevant if irm_frac > 0.
-        '''
-        self.ird_weights = ird_weights
-        self.irm_frac =irm_frac 
-        self.zipf_a = zipf_a
-
-        trace = gen_from_both(self.sample_ird, self.sample_zipf, self.M, self.n, irm_frac)
-        self.trace = trace
-        return trace
-```
 
 ### MRCs under various settings
-[See jupyter notebook](sample_combine_addr.ipynb)
+[See jupyter notebook](traceGen.ipynb)
 
 #### Vary the IRM fraction $p \in [0, 1]$:
 - When $p=0.5$, the trace is 50% freq-based and 50% ird-based, MRC convex/concave behavior shows evenly combined:
@@ -112,9 +60,11 @@ etc.
 
 #### Vary the IRD weight skewness $s \in [0, 9]$:
 
-- When $s=0$, the weight of each traffic class (implemented as different addr range) is uniform:
+- When $s=0$, the weight of each traffic class (implemented as different addr range) is uniform;
 
-- When $s=9$, the weight of each traffic class is highly skewed, the MRCs behaviors are more pronounced at any $p$:
+- When $s=9$, the weight of each traffic class is highly skewed, the MRCs behaviors are more pronounced at any $p$;
+
+- We set $s=4$ as default as any skewness higher than this contribute marginally to the overall MRC behaviors.
 
 #### Vary the number of classes $k \in \mathbb{Z}_+$:
 
@@ -122,6 +72,7 @@ etc.
 
 ### MRCs of real traces
 [See report](figures/real_mrc.pdf)
+[See jupyter notebook](traceRecon.ipynb)
 
 ### TraceReconstructor
 Use `TraceReconstructor` to pull out statistics and reconstruct synthetic traces of given real trace `trc` of length $n$, assume `trc` is block-addressable:

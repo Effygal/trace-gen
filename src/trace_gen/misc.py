@@ -5,6 +5,7 @@ import pickle
 import trace_gen.lru_wrapper as lru
 import trace_gen.fifo_wrapper as fifo
 import trace_gen.clock_wrapper as clock
+import trace_gen.arc_wrapper as arc
 import heapq
 import numpy as np
 import random
@@ -121,6 +122,8 @@ def gen_from_both(f, g,  M, n, irm_frac=0):
 
     addrs = []
     is_irm = []
+    time_var = []
+    count = 0
     for _ in range(n):  # create trace
         if random.random() < irm_frac: # sample a reference addr directly
             a = g()
@@ -137,9 +140,11 @@ def gen_from_both(f, g,  M, n, irm_frac=0):
                 addrs.append(addr)
                 heapq.heapreplace(h, [t0+t, addr])
             is_irm.append(False)
+            time_var.append(t0-count)
+        count += 1
 
     # return List[address: int], List[hot_or_cold: bool]
-    return np.array(addrs, dtype=np.int32), np.array(is_irm, dtype=bool)
+    return np.array(addrs, dtype=np.int32), np.array(is_irm, dtype=bool), np.array(time_var, dtype=np.int32)
 
 def sim_fifo(C, trace, raw=True):
     f = fifo.fifo(C)
@@ -168,6 +173,15 @@ def sim_lru(C, trace, raw=True):
         return 1 - m/a
     else:
         return l.hitrate()
+
+def sim_arc(C, trace, raw=True):
+    a = arc.arc(C)
+    a.run(trace)
+    if raw:
+        a, m = a.data()
+        return 1 - m/a
+    else:
+        return a.hitrate()
 
 # "compact" the address space of a trace.
 

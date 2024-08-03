@@ -10,7 +10,8 @@ from trace_gen.misc import *
 # import trace_gen.iad_wrapper as iad_wrapper
 # from trace_gen.unroll import *
 import random
-
+import scipy.interpolate as interpolate
+    
 class TraceGenerator:
     def __init__(self, M, n):
         '''
@@ -24,14 +25,49 @@ class TraceGenerator:
         self.n = n
         self.weights = [0.79992, 0.0001, 0.19998] # default weights for IRD
         self.zipf_a = 1.2 # exponent parameter for the zipf distribution
-        self.p_irm = 0 # fraction of the trace that follows IRM
-        self.ird_k = 3 # num of classes for IRD
+        self.ird_k = None # num of classes for IRD
         self.ird_s = 4 # skewness of the IRD weights
-        self.irm_k = 3 # num of classes for IRM
+        self.irm_k = None # num of classes for IRM
         self.pareto_a = 2.5 # the shape paremeter of pareto_alpha
         self.pareto_xm = 1 # the scale parameter pareto_xm
+        self.ird_samples = []
+        self.ird_sample_mean = None
+        self.pdf15 = [0.014332888772033765,
+                    0.7711220054386558,
+                    0.031611140672482836,
+                    1.983890796084442e-09,
+                    0.001372776398541284,
+                    0.12649811391472693,
+                    0.00016647713740345087,
+                    0.028850763840288743,
+                    0.025811135272233738,
+                    2.985032662827537e-07,
+                    2.966863554549485e-07,
+                    0.0002207139479488885,
+                    6.681772272474121e-06,
+                    6.6781736730528705e-06,
+                    2.7486226354857132e-08]
         
-    # define setters:
+        self.irm_type = 'zipf'
+
+    def calculate_ird_mean(self): 
+        '''
+        - Need to adjust M to mean/10 to scale fit to the same IRD sample space.
+        '''
+        if self.ird_k is None:
+            self.ird_k = len(self.weights)
+        segment_length = self.n // self.ird_k
+        means = 0
+        for i in range(self.ird_k):
+            start = i * segment_length
+            if i == self.ird_k - 1:
+                end = self.n + 1 
+            else:
+                end = (i + 1) * segment_length
+            means += np.mean(np.arange(start, end)) * self.weights[i]
+        self.ird_sample_mean = means
+        return means
+    
     def set_zipf_a(self, a):
         self.zipf_a = a
     
@@ -53,6 +89,15 @@ class TraceGenerator:
     def set_irm_k(self, k):
         self.irm_k = k
 
+    def set_irm_type(self, irm_type):
+        self.irm_type = irm_type
+
+    def set_ird_pdf(self, pdf):
+        self.ird_pdf = pdf
+    
+    def set_irds(self, irds):
+        self.irds = irds
+
     def assign_3_weights(self, s=4):
         '''
         Assign weights to the IRD classes with default k=2.
@@ -66,6 +111,7 @@ class TraceGenerator:
         first = self.s * last
         weights = [first, middle, last]
         self.weights = weights
+        self.ird_k = len(weights)
         return weights
     
     def assign_k_weights(self, classes):
@@ -102,36 +148,12 @@ class TraceGenerator:
         
         return normalized_numbers
     
-    def sample_ird(self):
-        '''
-        Sample ird from the set of different uniform distributions with rates = self.weights.
-        '''
-        if self.weights is None:
-            raise ValueError("Please assign weights to the distribution first.")
-        
-        num_intervals = len(self.weights)
-        
-        # width of each interval
-        interval_width = self.M // num_intervals
-        p =self.weights 
-
-        # choose from an interval based on the p
-        choice_interval = np.random.choice(num_intervals, p=p)
-
-        # calculate the lower and upper bounds of the chosen interval
-        lower_bound = choice_interval * interval_width
-        upper_bound = (choice_interval + 1) * interval_width
-
-        # uniformly sample from the chosen interval
-        sample = np.random.uniform(lower_bound, upper_bound)
-        return sample
-    
     def sample_zipf(self):
         '''
         Sample an address from a set of different uniform distributions with weights following an inverse power Zipf-like distribution.
         '''
         if self.irm_k is None:
-            raise ValueError("Please assign a value to the irm_k parameter first.")
+            self.irm_k = len(self.weights)
         if self.zipf_a is None:
             raise ValueError("Please assign a value to the zipf_a parameter first.")
         
@@ -153,7 +175,6 @@ class TraceGenerator:
         sample = np.random.uniform(lower_bound, upper_bound)
         
         return sample
-
 
     def sample_pareto(self):
         """
@@ -226,49 +247,113 @@ class TraceGenerator:
         start = np.random.randint(0, self.M - length)
         samples = np.arange(start, start + length)
         return samples
-
-    def generate_zipf_ird_mix(self, k=3, s=2, irm_frac=0, zipf_a=1.2):
-        '''
-        Generate a synthetic trace;
-        irm_frac specifies the fraction of the trace that follows IRM (item drawn from a zipf-like distribution);
-        zipf_a defines the zipf-like distribution parameter, only relevant if irm_frac > 0.
-        '''
-        if k < 3:
-            raise ValueError("The number of classes must be greater than 3.")
-        elif (k==3):
-            self.assign_3_weights(s) 
-            self.k=k
-        else:
-            self.assign_weights_with_k_s(k,s)
-            self.k=k
-        self.s=s
-        self.irm_frac =irm_frac 
-        self.zipf_a = zipf_a
-        trace, is_irm = gen_from_both(self.sample_ird, self.sample_zipf, self.M, self.n, irm_frac)
-        self.trace = trace
-        self.is_irm = is_irm
-        return trace, is_irm
-
     
-    def generate_trace(self, p_irm, irm_type = None):
+    # def gen_trace(self, p_irm, irm_type = None):
+    #     '''
+    #     Generate a synthetic trace;
+    #     p_irm specifies the fraction of the trace that follows IRM (item drawn from a zipf-like distribution);
+    #     irm_type defines the IRM distribution type, only relevant if p_irm > 0.
+    #     '''
+    #     self.p_irm = p_irm
+    #     self.irm_type = irm_type
+    #     if irm_type == 'zipf' or irm_type is None:
+    #         trace, is_irm  = gen_from_both(self.sample_from_pdf, self.sample_zipf, self.M, self.n, p_irm)
+    #     elif irm_type == 'pareto':
+    #         trace, is_irm = gen_from_both(self.sample_from_pdf, self.sample_pareto, self.M, self.n, p_irm)
+    #     elif irm_type == 'uniform':
+    #         trace, is_irm = gen_from_both(self.sample_from_pdf, self.samlple_uniform, self.M, self.n, p_irm)
+    #     elif irm_type == 'normal':
+    #         trace, is_irm = gen_from_both(self.sample_from_pdf, self.sample_normal, self.M, self.n, p_irm)
+    #     # elif irm_type == 'sequential': # deal with this later...
+    #     #     if self.seq_length is None:
+    #     #         raise ValueError("Please assign a length to the sequential trace first.")
+    #     #     trace, is_irm = gen_from_ird_seq()
+    #     else:
+    #         raise ValueError("Invalid IRM distribution type.")
+    #     return trace, is_irm
+
+    def sample_from_weights(self):
         '''
-        Generate a synthetic trace;
-        p_irm specifies the fraction of the trace that follows IRM (item drawn from a zipf-like distribution);
-        irm_type defines the IRM distribution type, only relevant if p_irm > 0.
+        Sample ird from the set of different uniform distributions with rates = weights.
         '''
+        num_intervals = len(self.weights)
+        interval_width = self.M // num_intervals
+
+        # choose from an interval
+        choice_interval = np.random.choice(num_intervals, p=self.weights) 
+
+        # calculate the lower and upper bounds of the chosen interval
+        lower_bound = choice_interval * interval_width
+        upper_bound = (choice_interval + 1) * interval_width
+
+        # uniformly sample from the chosen interval
+        sample = int(np.random.uniform(lower_bound, upper_bound))
+        if sample == 0:
+            sample = 1
+        return sample
+
+    def compute_T_and_bins(self):
+        """
+        Compute the value of T and the sample space bins such that the mean of samples drawn is self.M.
+        """
+        n = len(self.pdf)
+        
+        # Compute the sum of the indices weighted by the pdf
+        weighted_sum = sum((i + 0.5) * self.pdf[i] for i in range(n))
+
+        # Calculate T such that the mean matches desired_mean
+        T = (self.M * n) / weighted_sum
+
+        # Calculate bin midpoints
+        bin_width = T / n
+        bin_edges = np.array([i * bin_width for i in range(n + 1)])
+        self.bin_edges = bin_edges
+        self.T = T
+        # return T, bins
+
+    def sample_from_pdf(self):
+        chosen_bin = np.random.choice(len(self.bin_edges)-1, p=self.pdf)
+        bin_start = self.bin_edges[chosen_bin]
+        bin_end = self.bin_edges[chosen_bin + 1]
+        sample = np.random.uniform(bin_start, bin_end)
+        self.ird_samples.append(sample)
+        return sample 
+
+    def sample_from_irds(self):
+        return np.random.choice(self.irds)
+
+    def gen_from_pdf(self, pdf, p_irm):
+        pdf = np.array(pdf)
+        pdf /= pdf.sum()
+        self.pdf = pdf
         self.p_irm = p_irm
-        if irm_type == 'zipf' or irm_type is None:
-            trace, is_irm  = gen_from_both(self.sample_ird, self.sample_zipf, self.M, self.n, p_irm)
-        elif irm_type == 'pareto':
-            trace, is_irm = gen_from_both(self.sample_ird, self.sample_pareto, self.M, self.n, p_irm)
-        elif irm_type == 'uniform':
-            trace, is_irm = gen_from_both(self.sample_ird, self.samlple_uniform, self.M, self.n, p_irm)
-        elif irm_type == 'normal':
-            trace, is_irm = gen_from_both(self.sample_ird, self.sample_normal, self.M, self.n, p_irm)
+        self.compute_T_and_bins()
+        if self.irm_type == 'zipf' or self.irm_type is None:
+            trace, is_irm, tv  = gen_from_both(self.sample_from_pdf, self.sample_zipf, self.M, self.n, p_irm)
+        elif self.irm_type == 'pareto':
+            trace, is_irm, tv = gen_from_both(self.sample_from_pdf, self.sample_pareto, self.M, self.n, p_irm)
+        elif self.irm_type == 'uniform':
+            trace, is_irm, tv = gen_from_both(self.sample_from_pdf, self.samlple_uniform, self.M, self.n, p_irm)
+        elif self.irm_type == 'normal':
+            trace, is_irm, tv = gen_from_both(self.sample_from_pdf, self.sample_normal, self.M, self.n, p_irm)
         # elif irm_type == 'sequential': # deal with this later...
         #     if self.seq_length is None:
         #         raise ValueError("Please assign a length to the sequential trace first.")
         #     trace, is_irm = gen_from_ird_seq()
         else:
             raise ValueError("Invalid IRM distribution type.")
+        return trace, is_irm, tv
+     
+    def gen_from_weights(self, weights, p_irm):
+        self.weights = weights
+        self.weights = np.array(self.weights)
+        self.weights /= self.weights.sum() 
+        trace, is_irm  = gen_from_both(self.sample_from_weights, self.sample_zipf, self.M, self.n, p_irm)
+        return trace, is_irm
+
+    def gen_from_irds(self, irds, p_single):
+        # treat p_single as p_irm
+        irds = irds[irds > -1]
+        self.irds = irds
+        trace, is_irm = gen_from_both(self.sample_from_irds, self.sample_zipf, self.M, self.n, p_single)
         return trace, is_irm

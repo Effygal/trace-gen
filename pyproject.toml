@@ -8,7 +8,7 @@ version = "0.1.0"
 authors = [
 	{  name = "Effy Wang", email = "effywang57@gmail.com" }
 ]
-description = "a trace-generator lib, including three simple cache simulators."
+description = "a I/O trace-generation lib, including four simple cache simulators."
 # readme = "README.md"
 packages = [
 	{ include = "trace_gen", from = "src" },
