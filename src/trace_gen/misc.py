@@ -202,3 +202,24 @@ def to_pickle(var, f):
     fp = open(f, 'wb')
     pickle.dump(var, fp)
     fp.close()
+
+
+def fgen(k, indices, eps=1e-6):
+    '''
+    Generate a spike distribution with k classes, with spikes at positions specified by indices.
+    
+    Parameters:
+    k (int): Total number of classes.
+    indices (array-like): Positions where spikes occur.
+    eps (float): Small value for non-spike positions.
+
+    Returns:
+    np.ndarray: Probability distribution with spikes.
+    '''
+    l = np.full(k, eps)  # Initialize all elements to eps
+    s = len(indices)
+    l[indices] = (1 - eps) / s  # Assign spike values
+
+    # Normalize l
+    l = l / l.sum()
+    return l
