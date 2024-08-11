@@ -39,7 +39,7 @@ class TraceReconstructor:
             self.get_counts() 
         self.irm_cdf = np.cumsum(self.counts) / len(self.trace)
 
-    def generate_irm_trace(self, length):
+    def gen_from_irm(self, length):
         if self.cdf is None:
             self.get_cdf()
         self.irm_trace = [np.searchsorted(self.cdf, _) for _ in np.random.random(length)]

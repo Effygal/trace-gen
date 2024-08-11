@@ -28,25 +28,24 @@ import trace_gen as tg
 ```
 
 ### TraceGenerator
-Use TraceGenerator to generate a trace of length $n$, with reference addresses in $\{0 \cdots M-1\}$, with `weights`--an vector of weights assigned to each IRD class, adds up to be 1, the IRM fraction $p_{irm} \in [0, 1]$, which represents the fraction of the trace that follows IRM (draw items from a zipf-like distribution), and the zipf parameter $a$ that defines the zipf-like distribution with inverse power of $a \in (1, \infty)$:
+Use TraceGenerator to generate a trace of length $n$, with reference addresses in $\{0 \cdots M-1\}$, with `f`--an probability vector specifying weight of each IRD class, the IRM fraction $p_{irm} \in [0.0, 1.0]$, specifying the fraction of the arrivals following IRM (Zipf, Pareto, Normal, Uniform):
 ```Python
 g1 = tg.TraceGenerator(M = 100, n = 10000)
-g1.set_zipf_a(a = 2)
-g1.set_ird_weights([0.79992, 0.0001, 0.19998])
-trace1 = g1.generate_trace(p_irm=0.2, irm_type='zipf')
+f1 = tg.fgen(20, [0,3], 5e-3)
+trace1 = g1.gen_from_pdf(f1, p_irm=0.2)
 ```
-we can assign weights manually with `set_ird_weights()`, or auto-assign weights with specified number of classes $k$ and skewness $s$ (e.g., for controlled-experiment purpose):
-```python
-weights = g1.assign_weights_with_k_s(k=15, s=5)
-trace1 = g1.generate_trace(p_irm=0.2, irm_type='zipf')
-trace2 = g1.generate_trace(p_irm=0.2, irm_type='pareto')
-trace3 = g1.generate_trace(p_irm=0.2, irm_type='normal') 
-trace4 = g1.generate_trace(p_irm=0.2, irm_type='uniform')
+IRM type use Zipf(1.2) by default; configuring IRM type with:
 ```
-
+g.set_irm_type('pareto')
+g.set_pareto(a, xm)
+```
 
 ### MRCs under various settings
-[See jupyter notebook](traceGen.ipynb)
+Use interactive visualization to monitor MRC and fgen, need bokeh installed;
+under /interactive directory, run:
+```
+bokeh serve --show f_mrc_server.py
+```
 
 #### Vary the IRM fraction $p \in [0, 1]$:
 - When $p=0.5$, the trace is 50% freq-based and 50% ird-based, MRC convex/concave behavior shows evenly combined:
@@ -58,17 +57,13 @@ trace4 = g1.generate_trace(p_irm=0.2, irm_type='uniform')
 - When $p=0.2$, the trace is 20% frequency-based and 80% ird-based, MRC behaves somewhat mixed:
 etc.
 
-#### Vary the IRD weight skewness $s \in [0, 9]$:
+#### vary f
 
-- When $s=0$, the weight of each traffic class (implemented as different addr range) is uniform;
+- Adjust slider for the number of IRD classes $k \in \mathbb{Z}_+$;
 
-- When $s=9$, the weight of each traffic class is highly skewed, the MRCs behaviors are more pronounced at any $p$;
+- Input spike indices I as a list;
 
-- We set $s=4$ as default as any skewness higher than this contribute marginally to the overall MRC behaviors.
-
-#### Vary the number of classes $k \in \mathbb{Z}_+$:
-
-- When the number of classes is high, MRCs show higher mixed convex/concave behaviors
+- Adjust slider for epsilon
 
 ### MRCs of real traces
 [See report](figures/real_mrc.pdf)
@@ -81,11 +76,11 @@ trc_reconstructor = tg.TraceReconstructor(trc)
 ```
 Inter-reference distance-based reconstruction:
 ```python
-trc_irt_reconstructed = trc_reconstructor.generate_irt_trace(n=100000)
+trc_irt_reconstructed = trc_reconstructor.gen_from_ird(n=100000)
 ```
 Frequency-based reconstruction:
 ```python
-trc_irm_reconstructed = trc_reconstructor.generate_irm_trace(n=100000)
+trc_irm_reconstructed = trc_reconstructor.gen_from_irm(n=100000)
 ```
 <!-- ### HASH-based sampling
 SHARDS item sampling:
@@ -219,7 +214,6 @@ trace = np.loadtxt(file_path, dtype=np.int64)
 trace[:, 0] += 4095
 trace = tg.unroll(trace // 4096)
 ```
-Real storage I/O traces typically contain richer information for each reference, including a timestamp, access type (read or write), and a location represented as an offset and length. For the experiments in this paper, we converted I/O block traces to the simpler PARDA format: a sequence of 64-bit references, with no additional metadata; assumed a fixed cache block size (4096 bytes), and ignored the distinction between reads and writes as SHARDS does (this is to assume a unified page cache; we only use reads for the CloudPhysics traces). This effectively models a simple LRU policy with fixed access granularity, where the first access to a block is counted as a miss.
-
+Real storage I/O traces typically contain richer information for each reference, including a timestamp, access type (read or write), and a location represented as an offset and length. For the experiments in this paper, we converted I/O block traces to the simpler PARDA format: a sequence of 64-bit references, with no additional metadata; assumed a fixed cache block size (4096 bytes), and ignored the distinction between reads and writes as SHARDS does (this is to assume a unified page cache; we only use reads for the CloudPhysics traces). 
 
 

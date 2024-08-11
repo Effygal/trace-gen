@@ -36,7 +36,7 @@ class TraceGenerator:
         self.pdf_f = fgen(5, np.array([2]), 1e-2)  
         self.irm_type = 'zipf'
 
-    def calculate_ird_mean(self): 
+    def ird_mean(self): 
         '''
         - Need to adjust M to mean/10 to scale fit to the same IRD sample space.
         '''
@@ -54,15 +54,21 @@ class TraceGenerator:
         self.ird_sample_mean = means
         return means
     
-    def set_zipf_a(self, a):
+    def set_zipf(self, a):
         self.zipf_a = a
     
-    def set_pareto_a(self, a):
+    def set_pareto(self, a, xm):
         self.pareto_a = a
-    
-    def set_xm(self, xm):
         self.pareto_xm = xm
     
+    def set_normal(self, mean, std):
+        self.normal_mean = mean
+        self.normal_std = std
+
+    def set_uniform(self, a, b):
+        self.uniform_a = a
+        self.uniform_b = b
+        
     def set_p_irm(self, frac):
         self.p_irm = frac
     
@@ -86,24 +92,6 @@ class TraceGenerator:
     
     def set_p_single(self, p_single):
         self.p_single = p_single
-
-    def assign_pdf_with_k_s(self, classes=3, skewness=2):
-        '''
-        Auto assign weight to each IRD classes, given the number of classes and the skewness on the weights.
-        '''
-        # Generate random numbers with a decreasing trend (heuristic, unfounded)
-        random_numbers = [random.random() * (1 - i / classes) for i in range(classes)]
-
-        # Scale the random numbers based on the skewness
-        scaled_numbers = [x ** skewness for x in random_numbers]
-        
-        total = sum(scaled_numbers)
-        
-        normalized_numbers = [x / total for x in scaled_numbers]
-
-        self.ird_pdf = normalized_numbers
-        
-        return normalized_numbers
     
     def sample_zipf(self):
         '''
