@@ -27,6 +27,7 @@ class TraceGenerator:
         self.pareto_a = 2.5 # the shape paremeter of pareto_alpha
         self.pareto_xm = 1 # the scale parameter pareto_xm
         self.ird_samples = []
+        self.p_single = 0.0
         self.ird_sample_mean = None
         self.pdf_b = fgen(20, np.array([0,3]), 0.005)
         self.pdf_c = fgen(20, np.array([2,9]), 0.005) 
@@ -83,6 +84,9 @@ class TraceGenerator:
     def set_irds(self, irds):
         self.irds = irds
     
+    def set_p_single(self, p_single):
+        self.p_single = p_single
+
     def assign_pdf_with_k_s(self, classes=3, skewness=2):
         '''
         Auto assign weight to each IRD classes, given the number of classes and the skewness on the weights.
@@ -107,8 +111,6 @@ class TraceGenerator:
         '''
         if self.irm_k is None:
             self.irm_k = len(self.pdf)
-        if self.zipf_a is None:
-            raise ValueError("Please assign a value to the zipf_a parameter first.")
         
         num_intervals = self.irm_k
         interval_width = self.M // num_intervals
@@ -130,36 +132,30 @@ class TraceGenerator:
         return sample
 
     def sample_pareto(self):
-        """
-        Generate samples from a Pareto distribution, use inverse transform sampling (given an u, receive an x s.t. F(x) >= u).
-
-        Parameters:
-        - alpha: shape parameter of the Pareto distribution.
-        - xm: scale parameter of the Pareto distribution (default is 1).
-        - fix sample size = 1.
-        Returns:
-        - a sample drawn from the Pareto distribution.
-        """
-        if self.pareto_a is None:
-            raise ValueError("Please assign a value to the pareto_a parameter first.")
-        if self.pareto_xm is None:
-            raise ValueError("Please assign a value to the pareto_xm parameter first.")
+        '''
+        Sample an address from a set of different uniform distributions with weights following a Pareto distribution.
+        '''
+        if self.irm_k is None:
+            self.irm_k = len(self.pdf)
         
-        # Generate a uniform random sample between 0 and 1
-        uniform_sample = np.random.uniform(0, 1)
+        num_intervals = self.irm_k
+        interval_width = self.M // num_intervals
         
-        # Use the inverse CDF (quantile function) of the Pareto distribution
-        pareto_sample = self.pareto_xm / (uniform_sample ** (1 / self.pareto_a))
+        # Calculate Pareto p
+        p = (self.pareto_xm / np.arange(1, num_intervals + 1)) ** self.pareto_alpha
+        p /= np.sum(p)  # Normalize to sum to 1
         
-        # Scale the sample to fit within the range [0, M]
-        pareto_sample = pareto_sample - self.pareto_xm  # Shift to start from 0
-        # Scale the sample to fit within [0, M]
-        scaled_sample = pareto_sample * (self.M / (pareto_sample + self.pareto_xm))
-    
-        # Fit the sample is within the integer range [0, M]
-        integer_sample = min(max(int(scaled_sample), 0), self.M)
-
-        return integer_sample
+        # Select an interval based on Pareto p
+        choice_interval = np.random.choice(num_intervals, p=p)
+        
+        # bounds of the chosen interval
+        lower_bound = choice_interval * interval_width
+        upper_bound = (choice_interval + 1) * interval_width
+        
+        # Sample uniformly within the chosen interval
+        sample = np.random.uniform(lower_bound, upper_bound)
+        
+        return sample
 
     def samlple_uniform(self):
         """
@@ -216,10 +212,13 @@ class TraceGenerator:
         # return T, bins
 
     def sample_from_pdf(self):
-        chosen_bin = np.random.choice(len(self.bin_edges)-1, p=self.pdf)
-        bin_start = self.bin_edges[chosen_bin]
-        bin_end = self.bin_edges[chosen_bin + 1]
-        sample = np.random.uniform(bin_start, bin_end)
+        if random.random() < self.p_single:
+            sample = -1
+        else:
+            chosen_bin = np.random.choice(len(self.bin_edges)-1, p=self.pdf)
+            bin_start = self.bin_edges[chosen_bin]
+            bin_end = self.bin_edges[chosen_bin + 1]
+            sample = np.random.uniform(bin_start, bin_end)
         self.ird_samples.append(sample)
         return sample 
 
