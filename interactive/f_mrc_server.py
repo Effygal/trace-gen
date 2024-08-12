@@ -102,9 +102,4 @@ def update_p_irm(attrname: str, old: float, new: float):
 
 p_irm_slider.on_change('value', update_p_irm)
 
-
 curdoc().add_root(column(k_slider, indices_input, eps_slider, p_irm_slider, p, p2, width=800))
-
-
-
-
