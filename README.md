@@ -44,7 +44,7 @@ g.set_pareto(a, xm)
 Use interactive visualization to monitor MRC and fgen, need bokeh installed;
 under /interactive directory, run:
 ```
-bokeh serve --show f_mrc_server.py
+bokeh serve --show vis_server.py --port <port>
 ```
 
 #### Vary the IRM fraction $p \in [0, 1]$:

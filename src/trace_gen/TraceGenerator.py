@@ -21,12 +21,16 @@ class TraceGenerator:
         '''
         self.M = M
         self.n = n
-        self.zipf_a = 1.2 # exponent parameter for the zipf distribution
+        self.zipf_a = 1.2 
         self.ird_k = None # num of classes for IRD
         self.irm_k = None # num of classes for IRM
-        self.pareto_a = 2.5 # the shape paremeter of pareto_alpha
-        self.pareto_xm = 1 # the scale parameter pareto_xm
-        self.ird_samples = []
+        self.pareto_a = 2.5
+        self.pareto_xm = 1 
+        self.normal_mean = self.M / 2 
+        self.normal_std = self.M / 6 
+        self.uniform_a = 0 
+        self.uniform_b = self.M-1
+        # self.ird_samples = []
         self.p_single = 0.0
         self.ird_sample_mean = None
         self.pdf_b = fgen(20, np.array([0,3]), 0.005)
@@ -68,7 +72,7 @@ class TraceGenerator:
     def set_uniform(self, a, b):
         self.uniform_a = a
         self.uniform_b = b
-        
+
     def set_p_irm(self, frac):
         self.p_irm = frac
     
@@ -156,12 +160,12 @@ class TraceGenerator:
     
     def sample_normal(self):
         """
-        Generate a sample from a normal distribution with arbitrary mean in [0, M].
+        Generate a sample from a normal distribution with arbitrary mean in [mean, std].
 
         Returns:
         - An integer sample drawn from the normal distribution.
         """
-        sample = np.random.normal(self.M / 2, self.M / 6, 1)
+        sample = np.random.normal(self.normal_mean, self.normal_std, 1)
 
         sample = np.clip(sample, 0, self.M)
         
@@ -207,7 +211,7 @@ class TraceGenerator:
             bin_start = self.bin_edges[chosen_bin]
             bin_end = self.bin_edges[chosen_bin + 1]
             sample = np.random.uniform(bin_start, bin_end)
-        self.ird_samples.append(sample)
+        # self.ird_samples.append(sample)
         return sample 
 
     def sample_from_irds(self):
