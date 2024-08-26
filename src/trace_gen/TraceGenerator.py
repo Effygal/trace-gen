@@ -8,7 +8,8 @@ Date: 04/23/2024
 import numpy as np
 from trace_gen.misc import *
 import random
-import scipy.interpolate as interpolate
+# import scipy.interpolate as interpolate
+import bisect
 
 class TraceGenerator:
     def __init__(self, M, n):
@@ -39,6 +40,7 @@ class TraceGenerator:
         self.pdf_e = fgen(20, np.array([1]), 5e-3)
         self.pdf_f = fgen(5, np.array([2]), 1e-2)  
         self.irm_type = 'zipf'
+        
 
     def ird_mean(self): 
         '''
@@ -203,45 +205,58 @@ class TraceGenerator:
         self.tmax = tmax
         # return T, bins
 
-    def sample_from_pdf(self):
+    # def sample_from_pdf(self): #takes O(k) time
+    #     if random.random() < self.p_single:
+    #         sample = -1
+    #     else:
+    #         chosen_bin = np.random.choice(len(self.bin_edges)-1, p=self.pdf)
+    #         bin_start = self.bin_edges[chosen_bin]
+    #         bin_end = self.bin_edges[chosen_bin + 1]
+    #         sample = np.random.uniform(bin_start, bin_end)
+    #     # self.ird_samples.append(sample)
+    #     return sample 
+
+    def sample_from_pdf(self): #takes O(log(k)) time
         if random.random() < self.p_single:
             sample = -1
         else:
-            chosen_bin = np.random.choice(len(self.bin_edges)-1, p=self.pdf)
+            u = random.random()
+            chosen_bin = bisect.bisect_right(self.cdf, u)
             bin_start = self.bin_edges[chosen_bin]
             bin_end = self.bin_edges[chosen_bin + 1]
             sample = np.random.uniform(bin_start, bin_end)
-        # self.ird_samples.append(sample)
-        return sample 
+        return sample
 
     def sample_from_irds(self):
         return np.random.choice(self.irds)
 
-    def gen_from_pdf(self, pdf, p_irm):
+    def gen_from_pdf(self, pdf, p_irm): 
         pdf = np.array(pdf)
         pdf /= pdf.sum()
         self.pdf = pdf
+        self.cdf = np.cumsum(self.pdf)
+        self.cdf[-1] = 1.0
         self.p_irm = p_irm
         self.compute_tmax_and_bins()
         if self.irm_type == 'zipf' or self.irm_type is None:
-            trace, is_irm, tv  = gen_from_both(self.sample_from_pdf, self.sample_zipf, self.M, self.n, p_irm)
+            trace = gen_from_both(self.sample_from_pdf, self.sample_zipf, self.M, self.n, p_irm)
         elif self.irm_type == 'pareto':
-            trace, is_irm, tv = gen_from_both(self.sample_from_pdf, self.sample_pareto, self.M, self.n, p_irm)
+            trace = gen_from_both(self.sample_from_pdf, self.sample_pareto, self.M, self.n, p_irm)
         elif self.irm_type == 'uniform':
-            trace, is_irm, tv = gen_from_both(self.sample_from_pdf, self.samlple_uniform, self.M, self.n, p_irm)
+            trace = gen_from_both(self.sample_from_pdf, self.samlple_uniform, self.M, self.n, p_irm)
         elif self.irm_type == 'normal':
-            trace, is_irm, tv = gen_from_both(self.sample_from_pdf, self.sample_normal, self.M, self.n, p_irm)
+            trace = gen_from_both(self.sample_from_pdf, self.sample_normal, self.M, self.n, p_irm)
         # elif irm_type == 'sequential': # deal with this later...
         #     if self.seq_length is None:
         #         raise ValueError("Please assign a length to the sequential trace first.")
         #     trace, is_irm = gen_from_ird_seq()
         else:
             raise ValueError("Invalid IRM distribution type.")
-        return trace, is_irm, tv
+        return trace
 
     def gen_from_irds(self, irds, p_single):
         # treat p_single as p_irm
         irds = irds[irds > -1]
         self.irds = irds
-        trace, is_irm = gen_from_both(self.sample_from_irds, self.sample_zipf, self.M, self.n, p_single)
-        return trace, is_irm
+        trace = gen_from_both(self.sample_from_irds, self.sample_zipf, self.M, self.n, p_single)
+        return trace

@@ -103,13 +103,39 @@ def gen_from_ird2(f, M, n):
     return np.array(addrs, dtype=np.int32)
 
 def gen_from_both(f, g,  M, n, irm_frac=0):
-    """
-    f is a function that samples an integer represents an ird in [0, M-1];
-    g is a function that samples an integer represents an item in [0, M-1];
-    M is the size of the address space;
-    n is the length of the trace;
-    irm_frac is the fraction of the trace that follows IRM.
-    """
+    h = []
+    a0 = 0
+    # push all [t, hot_flag, a0] pair to the heap h, where t is drawn from the distribution function f();
+    while len(h) < M:
+        t = f()
+        if t != -1:
+            # assign an addr to each drawn t
+            heapq.heappush(h, [t, a0])
+            a0 += 1
+
+    addrs = []
+    count = 0
+    for _ in range(n):  # create trace
+        if random.random() < irm_frac: # sample a reference addr directly
+            a = g()
+            addrs.append(a) 
+        else:
+            t = f()
+            if t == -1:  # currently this won't be triggered for a generated synthetic trace (might fix later).
+                # assign a new addr that is not on the heap i.e. the map.
+                addrs.append(a0)
+                a0 += 1
+            else:  # the sample is an ird
+                t0, addr = h[0]
+                addrs.append(addr)
+                heapq.heapreplace(h, [t0+t, addr])
+        count += 1
+
+    # return List[address: int], List[hot_or_cold: bool]
+    return np.array(addrs, dtype=np.int32)
+
+def gen_from_both_verbose(f, g,  M, n, irm_frac=0):
+
     h = []
     a0 = 0
     # push all [t, hot_flag, a0] pair to the heap h, where t is drawn from the distribution function f();
