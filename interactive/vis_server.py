@@ -36,7 +36,7 @@ def mrc_compute(k, indices, eps, p_irm, M=100, n = 10000, irm_type=None, zipf_a=
     if irm_type is not None:
         gset(g, irm_type, zipf_a, pareto_a, pareto_xm, normal_mean, normal_std, uniform_a, uniform_b)
     x, pdf = fgen(k, indices, eps)
-    t, i, _ = g.gen_from_pdf(pdf, p_irm)
+    t = g.gen_from_pdf(pdf, p_irm)
     M2 = len(set(t))
     K2 = M2 // 20
     c = np.arange(1, M2, K2)
