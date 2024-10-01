@@ -1,2 +1,5 @@
 fast2024/fast2024.pdf
 fast2024/fast2024.synctex.gz
+venv/
+.cache/
+build/
