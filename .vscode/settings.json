@@ -1,5 +1,5 @@
 {
-    "C_Cpp.default.compileCommands": "/home/yirongwn/trace-gen/builddir/compile_commands.json",
+    "C_Cpp.default.compileCommands": "/home/yirongwn/proj/trace-gen/builddir/compile_commands.json",
     "files.associations": {
         "array": "cpp",
         "string": "cpp",
