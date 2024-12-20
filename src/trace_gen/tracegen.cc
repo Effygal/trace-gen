@@ -14,6 +14,22 @@
 
 using dist = std::function<i64(std::mt19937_64 &)>;
 
+auto get_intervals(i64 classes, i64 max)
+{
+    assert(classes > 0 && max > 0 && classes <= max);
+
+    vec<std::uniform_int_distribution<i64>> intervals;
+    auto width = max / classes;
+
+    for (i64 i = 1; i <= classes; i++) {
+        auto lower = (i - 1) * width;
+        auto upper = (i - 0) * width - 1;
+        upper = std::min(upper, max - 1);
+        intervals.push_back(std::uniform_int_distribution<i64>(lower, upper));
+    }
+    return intervals;
+}
+
 auto normal_dist(f64 mean, f64 stddev, i64 max) -> dist
 {
     std::normal_distribution<f64> dis(mean, stddev);
@@ -27,15 +43,17 @@ auto normal_dist(f64 mean, f64 stddev, i64 max) -> dist
     };
 }
 
-auto zipf_dist(f64 alpha, i64 n, i64 max) -> dist
+auto zipf_dist(f64 alpha, i64 classes, i64 max) -> dist
 {
+    assert(alpha > 0 && classes > 0);
+    fmt::print("IRM: zipf: alpha: {} n: {}\n", alpha, classes);
+
+    auto intervals = get_intervals(classes, max);
     std::vector<f64> weights;
-    std::vector<std::uniform_int_distribution<i64>> intervals;
-    for (f64 i = 1; i <= n; i++) {
+    for (f64 i = 1; i <= classes; i++)
         weights.push_back(1.0 / std::pow(i, alpha));
-        intervals.push_back(std::uniform_int_distribution<i64>(i - 1, i));
-    }
     normalise_vec(weights);
+    assert(weights.size() == intervals.size());
 
     std::discrete_distribution<i64> dis(weights.begin(), weights.end());
     return [dis, ivs = std::move(intervals)](std::mt19937_64 &rng) mutable {
@@ -50,17 +68,17 @@ auto uniform_dist(i64 max) -> dist
     return [dis](std::mt19937_64 &rng) mutable { return dis(rng); };
 }
 
-auto pareto_dist(f64 xm, f64 alpha, i64 n, i64 max) -> dist
+auto pareto_dist(f64 xm, f64 alpha, i64 classes, i64 max) -> dist
 {
-    fmt::print("IRM: pareto: xm: {} n: {}\n", xm, n);
+    assert(xm > 0 && alpha > 0 && classes > 0);
+    fmt::print("IRM: pareto: xm: {} n: {}\n", xm, classes);
 
+    auto intervals = get_intervals(classes, max);
     std::vector<f64> weights;
-    std::vector<std::uniform_int_distribution<i64>> intervals;
-    for (f64 i = 1; i <= n; i++) {
+    for (f64 i = 1; i <= classes; i++)
         weights.push_back(std::pow(xm / i, alpha));
-        intervals.push_back(std::uniform_int_distribution<i64>(i - 1, i));
-    }
     normalise_vec(weights);
+    assert(weights.size() == intervals.size());
 
     std::discrete_distribution<i64> dis(weights.begin(), weights.end());
     return [dis, ivs = std::move(intervals)](std::mt19937_64 &rng) mutable {
@@ -100,7 +118,14 @@ struct tadr {
     i64 ird;
     i64 addr;
 };
-auto tadr_cmp = [](const tadr &a, const tadr &b) { return a.ird < b.ird; };
+
+struct trace_entry {
+    i64 addr;
+    i64 size;
+    bool is_read;
+};
+
+auto tadr_cmp(const tadr &a, const tadr &b) { return a.ird > b.ird; };
 
 auto heappop(vec<tadr> &heap)
 {
@@ -117,17 +142,17 @@ auto heappush(vec<tadr> &heap, i64 ird, i64 addr)
 }
 
 /**
-We take in 5 inputs:
+We take in the following arguments:
 
-- m: footprint size (number of unique addresses)
-- n: length of trace (in addresses)
+- addrs: footprint size (number of unique addresses)
+- length: length of trace (in addresses)
 - p_irm: probability of the trace that is IRM (float between 0 and 1)
-- f: distribution of IRD (f1 to f6, or inputs to fgen (k # of classes, indices
-of spikes, and non-spike heights))
-- g: distribution of IRM (zipf, pareto, uniform, normal)
+- d_ird: function used to generate IRDs
+- d_irm: function used to generate IRMs
+- rng: random number generator
  */
-auto generate_trace(i64 addrs, i64 length, f64 p_irm, dist d_ird, dist d_irm,
-                    std::mt19937_64 &rng)
+auto gen_addresses(i64 addrs, i64 length, f64 p_irm, dist d_ird, dist d_irm,
+                   std::mt19937_64 &rng)
 {
     vec<tadr> irds;
 
@@ -138,10 +163,10 @@ auto generate_trace(i64 addrs, i64 length, f64 p_irm, dist d_ird, dist d_irm,
     // heapify the irds
     std::make_heap(irds.begin(), irds.end(), tadr_cmp);
 
+    std::uniform_real_distribution<> d_is_irm(0, 1);
     vec<i64> trace;
     for (i64 i = 0; i < length; i++) {
-        std::uniform_real_distribution<> dis(0, 1);
-        auto is_irm = dis(rng) < p_irm;
+        auto is_irm = d_is_irm(rng) < p_irm;
 
         // if it is IRM, draw from the IRM dist and continue
         if (is_irm) {
@@ -246,40 +271,73 @@ auto parse_irm(str dist_str, i64 max) -> dist
     log_fatal("Invalid dist type: {}", dist_type);
 }
 
+auto parse_request_sizes(str arg) -> dist
+{
+    auto parts = split(arg, ":");
+    ensure_fatal(parts.size() == 2, "Invalid size dist string: {}", arg);
+
+    auto weights = split(parts[0], ",");
+    auto sizes = split(parts[1], ",");
+    ensure_fatal(weights.size() == sizes.size(),
+                 "Unequal number of weights and sizes: {}", arg);
+
+    vec<f64> w;
+    vec<i64> s;
+    for (auto x : weights)
+        w.push_back(std::stod(x));
+    for (auto x : sizes)
+        s.push_back(std::stoi(x));
+    normalise_vec(w);
+
+    std::discrete_distribution<i64> dis(w.begin(), w.end());
+    return [dis, s](std::mt19937_64 &rng) mutable {
+        auto idx = dis(rng);
+        return s[idx];
+    };
+}
+
 int main(int argc, char **argv)
 {
+    // return main2(argc, argv);
     namespace po = boost::program_options;
 
     po::options_description desc("Allowed options");
 
-    i64 length, addrs, seed;
-    f64 p_irm;
-    str ird_arg, irm_arg;
+    i64 length, num_addrs, seed, blocksize;
+    f64 p_irm, frac_read;
+    str ird_arg, irm_arg, sizedist_arg;
 
     // clang-format off
     desc.add_options()
         ("help,h", "Produce this message")
-        ("addresses,m", po::value<i64>(&addrs)->required(),
-            "Footprint size (number of unique addresses)")
-        ("length,n", po::value<i64>(&length)->required(),
-            "Length of trace (in addresses)")
-        ("p_irm,p", po::value<f64>(&p_irm)->required(),
-            "Probability of the trace that is IRM (float between 0 and 1)")
-        // only support f1-f6 for now
+        ("addresses,m", po::value<i64>(&num_addrs)->required(), "Footprint size (number of unique addresses)")
+        ("length,n", po::value<i64>(&length)->required(), "Length of trace (in addresses)")
+        ("p_irm,p", po::value<f64>(&p_irm)->required(), "Probability of the trace that is IRM (float between 0 and 1)")
+        ("seed,s", po::value<i64>(&seed)->default_value(42), "RNG seed")
+        ("blocksize,b", po::value<i64>(&blocksize)->default_value(4096), "Size of a block in bytes")
         ("ird,f", po::value<str>(&ird_arg)->default_value("b"),
             "IRD distribution. Can be one of the pre-specified distributions (b to f) "
             "or inputs to fgen (k # of classes, non-spike heights, and indices of spikes) "
             "separated by columns. Example: -f b or -f fgen:10000:0.00001:3,5,10,20")
         ("irm,g", po::value<str>(&irm_arg)->default_value("zipf:1.2,20"),
             "IRM distribution. Can be: zipf:alpha,n, pareto:xm,a,n, uniform:max, normal:mean,stddev). ")
-        ("seed,s", po::value<i64>(&seed)->default_value(42),
-            "RNG seed");
+        ("rwratio,r", po::value<f64>(&frac_read)->default_value(1), 
+            "Fraction of addresses that are reads (vs writes)")
+        ("sizedist,z", po::value<str>(&sizedist_arg)->default_value("1:1"), 
+            "Distribution of request sizes in blocks."
+            "Specified as a list of weights (floats) followed by a list of sizes in blocks (ints)."
+            "Ex: 1,1,1:1,3,4 means equal chance of 1, 3, or 4-block requests")
     ;
     // clang-format on
 
     po::variables_map vm;
     try {
         po::store(po::parse_command_line(argc, argv, desc), vm);
+
+        if (vm.count("help")) {
+            desc.print(std::cout);
+            return 1;
+        }
     } catch (std::exception &e) {
         fmt::print("Error: {}\n", e.what());
         desc.print(std::cout);
@@ -287,28 +345,28 @@ int main(int argc, char **argv)
     }
     po::notify(vm);
 
-    if (vm.count("help")) {
-        desc.print(std::cout);
-        return 1;
-    }
-
     fmt::print("Generating trace with the following parameters:\n");
-    fmt::print("Addresses: {}\n", addrs);
+    fmt::print("Addresses: {}\n", num_addrs);
     fmt::print("Length: {}\n", length);
     fmt::print("Probability of IRM: {}\n", p_irm);
     fmt::print("Seed: {}\n", seed);
 
     auto ird = parse_ird(ird_arg);
-    auto irm = parse_irm(irm_arg, addrs);
+    auto irm = parse_irm(irm_arg, num_addrs);
+    auto sizedist = parse_request_sizes(sizedist_arg);
 
     std::mt19937_64 rng(seed);
-    auto trace = generate_trace(addrs, length, p_irm, ird, irm, rng);
-    for (auto t : trace)
-        fmt::print("{}\n", t);
+    auto addrs = gen_addresses(num_addrs, length, p_irm, ird, irm, rng);
 
-    auto d = ird;
-    for (int i = 0; i < 20; i++)
-        fmt::print("{}\n", d(rng));
+    // post-process to include r/w, size, and byte offset (instead of block)
+    std::uniform_real_distribution<> d_is_read(0, 1);
+
+    for (auto addr : addrs) {
+        auto is_read = (d_is_read(rng) < frac_read);
+        auto size = sizedist(rng);
+        fmt::print("{:d} {} {}\n", !is_read, size * blocksize,
+                   addr * blocksize);
+    }
 
     return 0;
 }
