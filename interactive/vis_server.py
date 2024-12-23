@@ -2,7 +2,7 @@ import numpy as np
 import trace_gen as tg
 from bokeh.io import curdoc
 from bokeh.layouts import column, row
-from bokeh.models import ColumnDataSource, Slider, TextInput, Select
+from bokeh.models import ColumnDataSource, Slider, TextInput, Select, Div, CustomJS
 from bokeh.plotting import figure
 
 MIN_EPS = 1e-6
@@ -57,6 +57,9 @@ mrc_source = ColumnDataSource(data=dict(c=c, hr=hr))
 p = figure(title="f", width=350, height=350)
 p.line(x='x', y='y', line_width=2, color='orange', source=fgen_source)
 
+p1 = figure(title="g", width=350, height=350)
+p1.line(x='x', y='y', line_width=2, color='green', source=fgen_source)
+
 p2 = figure(title="MRC", width=350, height=350)
 p2.line(x='c', y='hr', line_width=2, source=mrc_source)
 
@@ -68,16 +71,21 @@ eps_input = TextInput(
     value=str(eps), title="Epsilon"
 )
 
+
 p_irm_slider = Slider(
-    title="p_irm", value=p_irm, start=0.0, end=1.0, step=0.01
+    title="P_IRM", value=p_irm, start=0.0, end=1.0, step=0.01
 )
+
 
 M_select = Select(
     title="M", value="100", options=["100", "1000", "10000"]
 )
 
+f_title = Div(text="<b>f</b>")
+g_title = Div(text="<b>g</b>")
+
 k_slider = Slider(
-    start=MIN_K, end=MAX_K, value=MIN_K, step=1, title="k parameter"
+    start=MIN_K, end=MAX_K, value=MIN_K, step=1, title="k"
 )
 
 n_select = Select(
@@ -287,9 +295,37 @@ def update_uniform_b(attrname: str, old: float, new: float):
 
 uniform_b_slider.on_change('value', update_uniform_b)
 
+# layout = row(
+#     column(M_select, n_select, k_slider, indices_input, eps_input, p),
+#     column(p_irm_slider, irm_type_select, zipf_a_slider, pareto_a_slider, pareto_xm_slider, normal_mean_slider, normal_std_slider, uniform_a_slider, uniform_b_slider, p2)
+# )
+
+
+# f_title = Label(text="f", text_font_size="20pt", text_font_style="bold")
+# g_title = Label(text="g", text_font_size="20pt", text_font_style="bold")
+# # Define column "f" with its label
+# f = column(f_title, k_slider, indices_input, eps_input)
+
+# # Define column "g" with its label
+# g = column(g_title, irm_type_select, zipf_a_slider, pareto_a_slider, pareto_xm_slider, 
+#            normal_mean_slider, normal_std_slider, uniform_a_slider, uniform_b_slider)
+
+# # Create the layout, using the defined modules
+# layout = row(
+#     column(M_select, n_select),  # First column
+#     f,  # Second column, now with label "f"
+#     g,  # Third column, now with label "g"
+#     column(p_irm_slider, p2)  # Fourth column
+# )
+
 layout = row(
-    column(M_select, n_select, k_slider, indices_input, eps_input, p),
-    column(p_irm_slider, irm_type_select, zipf_a_slider, pareto_a_slider, pareto_xm_slider, normal_mean_slider, normal_std_slider, uniform_a_slider, uniform_b_slider, p2)
+    column(M_select), 
+    column(n_select), 
+    column(f_title, k_slider, indices_input, eps_input), 
+    column(g_title, irm_type_select, zipf_a_slider, pareto_a_slider, pareto_xm_slider, normal_mean_slider, normal_std_slider, uniform_a_slider, uniform_b_slider),
+    column(p_irm_slider),  # Fourth column
+    column(p2)
 )
 
+# # Show or add the layout to your document
 curdoc().add_root(layout)

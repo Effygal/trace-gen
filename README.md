@@ -215,6 +215,7 @@ The `misc` module contains the following functions:
 ### Cloudphysics traces, unroll.py
 
 You can get the cloudphysics traces from [https://kzn-swift.massopen.cloud/pjd-public/anonymized106.zip](https://kzn-swift.massopen.cloud/pjd-public/anonymized106.zip)
+[pjd-rz:/mnt/sda/anonymized106](pjd-rz:/mnt/sda/anonymized106)
 
 There are 106 traces, w01 through w106. I've put the translated files in the S3 bucket, as well, named e.g. `w05_vscsi1.vscsitrace.txt`, and put a list of the URLs in the file trace-urls.  (some files are named `...vscsi1...` and some are `...vscsi2...`, for a silly reason.)
 
