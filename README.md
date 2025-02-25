@@ -1,39 +1,15 @@
-# trace_gen ![MIT](https://img.shields.io/badge/license-MIT-blue.svg) 
-**[A library that generates realistic block I/O workloads](https://https://github.com/Effygal/trace-gen)**
-## Status
+# trace-gen ![MIT](https://img.shields.io/badge/license-MIT-blue.svg) 
+**[Cache-accurate synthetic I/O generator](https://https://github.com/Effygal/trace-gen)**
 
-Generates traces of 1D integer array that represent address accesses;
+## In a nutshell
+* What other tools do: generate I/O traces with hit ratios that look like this:
+![MRC](images/mrc.png)
 
-Modules:
-    (1) `TraceGenerator`---generate synthetic traces from scratch with specified parameters;
-    (2) `TraceReconstructor`---generate synthetic traces that are reconstructed based on a given real-world trace; supports inter-reference distance-based reconstruction and frequency-based reconstruction;
-    (3) `LRU` cache simulator (novel); 
-    (4) `FIFO` cache simulator;
-    (5) `CLOCK` cache simulator.
-## Installation
+* What this tool does: generate I/O traces with hit ratios that look like this:
+![MRC](images/mrc2.png)
 
-Under the main trace-gen directory, install `trace_gen` via pip:
 
-```bash
-pip install .
-```
-
-Or install the release/distribute version:
-```bash
-pip install trace_gen-0.1.0-cp310-cp310-linux_x86_64.whl
-```
-
-Build with `mkdir build && meson compile -C build`
-
-## Usage
-
-Under any development directory:
-
-```Python
-import trace_gen as tg
-```
-
-### trace-gen
+## Standalone CLI
 
 Help:
 
@@ -67,21 +43,46 @@ Allowed options:
 Examples:
 
 ```
-# 10k address space, 100 address trace, 50% IRM, type 'c' IRD, 4k block size, 
+# 100 address footprint, 10k trace length, 50% IRM, type 'c' IRD, 4k block size, 
 # 50% reads, 50% writes, sizes are evenly distributed between 1 and 2 blocks
-./trace-gen -m 10000 -n 100 -p 0.5 -f c -r 0.5 -z 1,1:1,2
+./trace-gen -m 100 -n 10000 -p 0.5 -f c -r 0.5 -z 1,1:1,2
 
 # seed rng with 42
-./trace-gen -m 10000 -n 100 -p 0.5 -f c -r 0.5 -z 1,1:1,2 -s 42
+./trace-gen -m 100 -n 10000 -p 0.5 -f c -r 0.5 -z 1,1:1,2 -s 42
 
 # make the trace all reads instead (default behaviour)
-./trace-gen -m 10000 -n 100 -p 0.5 -f c -z 1,1:1,2 -s 42
+./trace-gen -m 100 -n 10000 -p 0.5 -f c -z 1,1:1,2 -s 42
 
 # have a 25/25/50 split of 1, 3, and 4 block requests
-./trace-gen -m 10000 -n 100 -p 0.5 -f c -z 1,1,2:1,3,4 -s 42
+./trace-gen -m 100 -n 10000 -p 0.5 -f c -z 1,1,2:1,3,4 -s 42
 
 # set blocksize to one (so generated addresses are adjacent)
-./trace-gen -m 10000 -n 100 -p 0.5 -f c -z 1,1,2:1,3,4 -s 42 -b 1
+./trace-gen -m 100 -n 10000 -p 0.5 -f c -z 1,1,2:1,3,4 -s 42 -b 1
+```
+Output traces are in SPC format.
+
+## Python lib 
+
+### Install
+Under the main trace-gen directory, install `trace_gen` via pip:
+
+```bash
+pip install .
+```
+
+Or install the release/distribute version:
+```bash
+pip install trace_gen-0.1.0-cp310-cp310-linux_x86_64.whl
+```
+
+Build with `mkdir build && meson compile -C build`
+
+### Usage
+
+Under any development directory:
+
+```Python
+import trace_gen as tg
 ```
 
 ### TraceGenerator
