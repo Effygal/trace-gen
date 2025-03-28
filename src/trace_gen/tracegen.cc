@@ -94,7 +94,7 @@ auto sequential_dist() -> dist
     return [i](std::mt19937_64 &rng) mutable { return i++; };
 }
 
-auto irdgen(i64 k, f64 epsilon, vec<i64> spikes) -> dist
+auto irdgen(i64 k, f64 epsilon, vec<i64> spikes, i64 unique_addrs) -> dist
 {
     vec<f64> weights;
     for (i64 i = 0; i < k; i++)
@@ -108,8 +108,28 @@ auto irdgen(i64 k, f64 epsilon, vec<i64> spikes) -> dist
         fmt::print("{} ", s);
     fmt::print("\n");
 
-    std::discrete_distribution<i64> dis(weights.begin(), weights.end());
-    return [dis](std::mt19937_64 &rng) mutable { return dis(rng); };
+    std::discrete_distribution<i64> bw_dis(weights.begin(), weights.end());
+
+    // these weights are actually of another space of bins
+    // for example, fgen 5 0.1 (1 3)
+    // gets you a distribution over the bins of [0.1 0.9 0.1 0.9 0.1]
+    // (before normalisation)
+    // but then we have to project this up to a space of 0 to tmax
+    // each bin is weighted by its index + 0.5, and each bin is
+    // determined by some weird formulas i don't understand
+
+    f64 weighted_sum = 0;
+    for(i64 i = 0; i < weights.size(); i++)
+        // i don't understand this formula but sure
+        weighted_sum += weights[i] * (i + 0.5);
+
+    f64 tmax = unique_addrs * k / weighted_sum;
+    auto bins = get_intervals(k, tmax);
+
+    return [bw_dis,bins](std::mt19937_64 &rng) mutable {
+        auto i_bin = bw_dis(rng);
+        return bins[i_bin](rng);
+    };
 }
 
 // === Trace generation ===
@@ -178,7 +198,7 @@ auto gen_addresses(i64 addrs, i64 length, f64 p_irm, dist d_ird, dist d_irm,
 
         // otherwise, draw from the IRD dist
         auto ird_sample = d_ird(rng);
-        assert(ird_sample >= 0 && ird_sample < addrs);
+        // assert(ird_sample >= 0 && ird_sample < addrs);
 
         auto min_ird = heappop(irds);
         trace.push_back(min_ird.addr);
@@ -190,7 +210,7 @@ auto gen_addresses(i64 addrs, i64 length, f64 p_irm, dist d_ird, dist d_irm,
 
 // === Parsing and user io ===
 
-auto parse_fgen(vec<str> args)
+auto parse_fgen(vec<str> args, i64 unique_addrs)
 {
     assert(args[0] == "fgen");
     ensure_fatal(args.size() == 4,
@@ -203,25 +223,25 @@ auto parse_fgen(vec<str> args)
     for (auto s : spikes)
         spike_idxs.push_back(std::stoi(s));
 
-    return irdgen(k, epsilon, spike_idxs);
+    return irdgen(k, epsilon, spike_idxs, unique_addrs);
 }
 
-auto parse_ird(str s)
+auto parse_ird(str s, i64 unique_addrs)
 {
     if (s == "b")
-        return irdgen(20, 0.005, {0, 3});
+        return irdgen(20, 0.005, {0, 3}, unique_addrs);
     if (s == "c")
-        return irdgen(20, 0.005, {2, 9});
+        return irdgen(20, 0.005, {2, 9}, unique_addrs);
     if (s == "d")
-        return irdgen(5, 0.01, {0, 4});
+        return irdgen(5, 0.01, {0, 4}, unique_addrs);
     if (s == "e")
-        return irdgen(20, 0.005, {1});
+        return irdgen(20, 0.005, {1}, unique_addrs);
     if (s == "f")
-        return irdgen(20, 0.01, {2});
+        return irdgen(20, 0.01, {2}, unique_addrs);
 
     auto args = split(s, ":");
     if (args[0] == "fgen")
-        return parse_fgen(args);
+        return parse_fgen(args, unique_addrs);
 
     std::cerr << "Invalid dist string: " << s << std::endl;
     exit(1);
@@ -321,9 +341,9 @@ int main(int argc, char **argv)
             "separated by columns. Example: -f b or -f fgen:10000:0.00001:3,5,10,20")
         ("irm,g", po::value<str>(&irm_arg)->default_value("zipf:1.2,20"),
             "IRM distribution. Can be: zipf:alpha,n, pareto:xm,a,n, uniform:max, normal:mean,stddev). ")
-        ("rwratio,r", po::value<f64>(&frac_read)->default_value(1), 
+        ("rwratio,r", po::value<f64>(&frac_read)->default_value(1),
             "Fraction of addresses that are reads (vs writes)")
-        ("sizedist,z", po::value<str>(&sizedist_arg)->default_value("1:1"), 
+        ("sizedist,z", po::value<str>(&sizedist_arg)->default_value("1:1"),
             "Distribution of request sizes in blocks."
             "Specified as a list of weights (floats) followed by a list of sizes in blocks (ints)."
             "Ex: 1,1,1:1,3,4 means equal chance of 1, 3, or 4-block requests")
@@ -351,7 +371,7 @@ int main(int argc, char **argv)
     fmt::print("Probability of IRM: {}\n", p_irm);
     fmt::print("Seed: {}\n", seed);
 
-    auto ird = parse_ird(ird_arg);
+    auto ird = parse_ird(ird_arg, num_addrs);
     auto irm = parse_irm(irm_arg, num_addrs);
     auto sizedist = parse_request_sizes(sizedist_arg);
 
