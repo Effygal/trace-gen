@@ -5,9 +5,6 @@ Trace Reconstructor
 - Support IRM and ird reconstruction from real traces;
 - "pack_trace" function packages the original real trace into blocks before any processing;
 - retrieve only good irds from the real trace, eliminating noises from first encounters.
-
-Author: Peter Desnoyers & Yirong Wang
-Date: 04/23/2024
 """
 
 import numpy as np

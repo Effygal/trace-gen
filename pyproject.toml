@@ -1,6 +1,6 @@
 [build-system]
 build-backend = "mesonpy"
-requires = ["meson-python", "wheel", "ninja", "numpy", "pybind11>=2.8.0"]
+requires = ["meson-python", "wheel", "ninja", "numpy<2.0", "pybind11>=2.8.0"]
 
 [project]
 name = "trace_gen"
@@ -9,11 +9,14 @@ authors = [
 	{  name = "Effy Wang", email = "effywang57@gmail.com" }
 ]
 description = "a I/O trace-generation lib, including four simple cache simulators."
-# readme = "README.md"
+readme = "README.md"
 packages = [
 	{ include = "trace_gen", from = "src" },
 ]
-dependencies = [
-  "numpy"
-]
+requires-python = ">= 3.10"
 license = {file = "LICENSE"}
+dependencies = [
+    "bokeh>=3.3",
+    "numpy<2.0",
+	"scipy<1.13",
+]

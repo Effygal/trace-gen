@@ -5,7 +5,7 @@ import pickle
 import trace_gen.lru_wrapper as lru
 import trace_gen.fifo_wrapper as fifo
 import trace_gen.clock_wrapper as clock
-import trace_gen.arc_wrapper as arc
+# import trace_gen.arc_wrapper as arc
 import heapq
 import numpy as np
 import random
@@ -213,8 +213,8 @@ def sim_arc(C, trace, raw=True):
 
 def squash(t):
     a = np.unique(t)
-    n = np.zeros(np.max(t)+1, dtype=np.int32)
-    x = np.arange(len(a), dtype=np.int32)
+    n = np.zeros(np.max(t)+1, dtype=np.int64)
+    x = np.arange(len(a), dtype=np.int64)
     n[a] = x
     return n[t]
 
