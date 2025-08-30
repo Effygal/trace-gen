@@ -23,10 +23,13 @@ tracegen_deps = [
     dependency('fmt'),
 ]
 
-# tracegen cpp rewrite
-executable('trace-gen', tracegen_src, dependencies: [tracegen_deps])
+executable(
+  'trace-gen',
+  tracegen_src,
+  dependencies: [tracegen_deps],
+  install: true,
+)
 
-## Import python kernel + numpy core libraries
 py_mod = import('python')
 py = py_mod.find_installation('python3', pure: true, required: true, modules: ['numpy']) # python_installation object
 message('Python path =' + py.full_path() + ', version: ' + py.version())
@@ -47,9 +50,9 @@ _cpp_args += compiler.get_supported_arguments(
     # '-g',
     '-Wall',
     '-Wno-sign-compare',
+    '-stdlib=libstdc++'
 )
 
-## Add directories to include
 includes = []
 # includes += include_directories('extern')
 includes += include_directories(incdir_pybind11)
@@ -61,7 +64,6 @@ includes += include_directories(incdir_pybind11)
 #     deps += compiler.find_library(dep, dirs : libdir)
 # endforeach
 
-## Specify source files
 python_sources = [
     'src/trace_gen/__init__.py',
     'src/trace_gen/unroll.py',
@@ -75,7 +77,6 @@ python_sources = [
     #   'src/trace_gen/arc_wrapper.py'
 ]
 
-## Extension modules
 module = py.extension_module(
     '_unroll',
     sources: ['src/trace_gen/unroll.cpp'],
@@ -127,7 +128,7 @@ module = py.extension_module(
 py.install_sources(
     python_sources,
     subdir: 'trace_gen',
-    pure: false # Will be installed next to binaries,
+    pure: false 
 )
 
 # executable('simple', 'simple.cpp', include_directories : includes, dependencies : deps)

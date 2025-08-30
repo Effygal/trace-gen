@@ -1,10 +1,3 @@
-"""
-Trace Generator
-- Generate synthetic traces from a set of parameters;
-- Sampling ird from the real trace;
-Author: Peter Desnoyers & Yirong Wang
-Date: 04/23/2024
-"""
 import numpy as np
 from trace_gen.misc import *
 import random
@@ -40,25 +33,6 @@ class TraceGenerator:
         self.pdf_e = fgen(20, np.array([1]), 5e-3)
         self.pdf_f = fgen(5, np.array([2]), 1e-2)  
         self.irm_type = 'zipf'
-        
-
-    def ird_mean(self): 
-        '''
-        - Need to adjust M to mean/10 to scale fit to the same IRD sample space.
-        '''
-        if self.ird_k is None:
-            self.ird_k = len(self.weights)
-        segment_length = self.n // self.ird_k
-        means = 0
-        for i in range(self.ird_k):
-            start = i * segment_length
-            if i == self.ird_k - 1:
-                end = self.n + 1 
-            else:
-                end = (i + 1) * segment_length
-            means += np.mean(np.arange(start, end)) * self.weights[i]
-        self.ird_sample_mean = means
-        return means
     
     def set_zipf(self, a):
         self.zipf_a = a
@@ -100,73 +74,48 @@ class TraceGenerator:
         self.p_single = p_single
     
     def sample_zipf(self):
-        '''
-        Sample an address from a set of different uniform distributions with weights following an inverse power Zipf-like distribution.
-        '''
         if self.irm_k is None:
             self.irm_k = len(self.pdf)
         
         num_intervals = self.irm_k
         interval_width = self.M // num_intervals
         
-        # Calculate Zipf p
         p = 1.0 / np.power(np.arange(1, num_intervals + 1), self.zipf_a)
-        p /= np.sum(p)  # Normalize to sum to 1
+        p /= np.sum(p) 
         
-        # Select an interval based on Zipf p
         choice_interval = np.random.choice(num_intervals, p=p)
         
-        # bounds of the chosen interval
         lower_bound = choice_interval * interval_width
         upper_bound = (choice_interval + 1) * interval_width
         
-        # Sample uniformly within the chosen interval
         sample = np.random.uniform(lower_bound, upper_bound)
         
         return sample
 
     def sample_pareto(self):
-        '''
-        Sample an address from a set of different uniform distributions with weights following a Pareto distribution.
-        '''
         if self.irm_k is None:
             self.irm_k = len(self.pdf)
         
         num_intervals = self.irm_k
         interval_width = self.M // num_intervals
         
-        # Calculate Pareto p
         p = (self.pareto_xm / np.arange(1, num_intervals + 1)) ** self.pareto_alpha
-        p /= np.sum(p)  # Normalize to sum to 1
+        p /= np.sum(p)  
         
-        # Select an interval based on Pareto p
         choice_interval = np.random.choice(num_intervals, p=p)
         
-        # bounds of the chosen interval
         lower_bound = choice_interval * interval_width
         upper_bound = (choice_interval + 1) * interval_width
         
-        # Sample uniformly within the chosen interval
         sample = np.random.uniform(lower_bound, upper_bound)
         
         return sample
 
     def samlple_uniform(self):
-        """
-        Generate samples from a uniform distribution.
-
-        Returns a samples drawn from the uniform distribution [0, self.M].
-        """
         sample = np.random.uniform(0, self.M, 1)
         return int(sample)
     
     def sample_normal(self):
-        """
-        Generate a sample from a normal distribution with arbitrary mean in [mean, std].
-
-        Returns:
-        - An integer sample drawn from the normal distribution.
-        """
         sample = np.random.normal(self.normal_mean, self.normal_std, 1)
 
         sample = np.clip(sample, 0, self.M)
@@ -174,31 +123,17 @@ class TraceGenerator:
         return int(sample)
 
     def sample_sequential(self, length):
-        """
-        Generate a sequence of addrs with a given length = frac*M.
-
-        Parameters:
-        - length: length of the sequence.
-
-        Returns:
-        - samples: a sequence of addrs start from random addr.
-        """
-        # Generate a sequential trace
         start = np.random.randint(0, self.M - length)
         samples = np.arange(start, start + length)
         return samples
 
     def compute_tmax_and_bins(self):
-        """
-        Compute the value of Tmax and the sample space bins such that the mean of samples drawn is self.M.
-        """
         n = len(self.pdf)
         weighted_sum = sum((i + 0.5) * self.pdf[i] for i in range(n))
 
         # Calculate Tmax s.t. the mean of irds is M
         tmax = (self.M * n) / weighted_sum
 
-        # bin midpoints
         bin_width = tmax / n
         bin_edges = np.array([i * bin_width for i in range(n + 1)])
         self.bin_edges = bin_edges
@@ -216,7 +151,7 @@ class TraceGenerator:
     #     # self.ird_samples.append(sample)
     #     return sample 
 
-    def sample_from_pdf(self): #takes O(log(k)) time
+    def sample_from_pdf(self):
         if random.random() < self.p_single:
             sample = -1
         else:

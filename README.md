@@ -9,9 +9,7 @@
 ![MRC](images/mrc2.png)
 
 
-## Standalone CLI
-
-Help:
+## Standalone CLI `trace-gen`
 
 ```
 Allowed options:
@@ -63,19 +61,41 @@ Output traces are in SPC format.
 
 ## Python lib 
 
+If you are on Linux x86, you can install the package directly from the wheel (see GH releases): 
+
+```bash
+python -m pip install trace_gen-0.1.0-cp310-cp310-linux_x86_64.whl
+```
+
+## Build prerequisites 
+
+If you plan on building & installing the package from source, you will need the following system dependencies: 
+
+- C++ compiler (tested on gcc 13.3.0)
+- Boost >= 1.83.0
+
+For Debian-based distros, you can install these directly with `apt-get`:
+
+```bash
+sudo apt-get install build-essential libboost-all-dev libfmt-dev pkg-config
+```
+
 ### Install
+
 Under the main trace-gen directory, install `trace_gen` via pip:
 
 ```bash
-pip install .
+python -m pip install .
 ```
 
-Or install the release/distribute version:
+If you prefer building from the source:
 ```bash
-pip install trace_gen-0.1.0-cp310-cp310-linux_x86_64.whl
+python -m build
 ```
-
-Build with `mkdir build && meson compile -C build`
+or build a wheel file
+```bash
+python -m build --wheel
+```
 
 ### Usage
 
