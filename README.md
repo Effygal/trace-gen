@@ -1,13 +1,5 @@
-# trace-gen ![MIT](https://img.shields.io/badge/license-MIT-blue.svg) 
-**[Cache-accurate synthetic I/O generator](https://https://github.com/Effygal/trace-gen)**
-
-## In a nutshell
-* What other tools do: generate I/O traces with hit ratios that look like this:
-![MRC](images/mrc.png)
-
-* What this tool does: generate I/O traces with hit ratios that look like this:
-![MRC](images/mrc2.png)
-
+# 2DIO trace-gen ![MIT](https://img.shields.io/badge/license-MIT-blue.svg) 
+**[A cache-accurate synthetic I/O generator](https://https://github.com/Effygal/trace-gen)**
 
 ## Standalone CLI `trace-gen`
 
@@ -81,26 +73,21 @@ sudo apt-get install build-essential libboost-all-dev libfmt-dev pkg-config
 ```
 
 ### Install
-
-Under the main trace-gen directory, install `trace_gen` via pip:
-
-```bash
-python -m pip install .
-```
-
 If you prefer building from the source:
 ```bash
 python -m build
 ```
-or build a wheel file
+or you can build a wheel file
 ```bash
 python -m build --wheel
 ```
 
+Under the main trace-gen directory, install `trace_gen` via pip:
+```bash
+python -m pip install .
+```
+
 ### Usage
-
-Under any development directory:
-
 ```Python
 import trace_gen as tg
 ```
@@ -108,9 +95,9 @@ import trace_gen as tg
 ### TraceGenerator
 Use TraceGenerator to generate a trace of length $n$, with reference addresses in $\{0 \cdots M-1\}$, with `f`--an probability vector specifying weight of each IRD class, the IRM fraction $p_{irm} \in [0.0, 1.0]$, specifying the fraction of the arrivals following IRM (Zipf, Pareto, Normal, Uniform):
 ```Python
-g1 = tg.TraceGenerator(M = 100, n = 10000)
+g = tg.TraceGenerator(M = 100, n = 10000)
 f1 = tg.fgen(20, [0,3], 5e-3)
-trace1 = g1.gen_from_pdf(f1, p_irm=0.2)
+trace1 = g.gen_from_pdf(f1, p_irm=0.2)
 ```
 IRM type use Zipf(1.2) by default; configuring IRM type with:
 ```
@@ -118,9 +105,11 @@ g.set_irm_type('pareto')
 g.set_pareto(a, xm)
 ```
 
-### MRCs under various settings
-Use interactive visualization to monitor MRC and fgen, need bokeh installed;
-under /interactive directory, run:
+## Interactive parameter-searching
+
+### Enter an interactive session
+Monitor the hit ratio curve in responding to each parameter adjustment.
+- under /interactive directory, run:
 ```
 bokeh serve --show vis_server.py --port <port>
 ```
@@ -143,11 +132,7 @@ etc.
 
 - Adjust slider for epsilon
 
-### MRCs of real traces
-[See report](figures/real_mrc.pdf)
-[See jupyter notebook](traceRecon.ipynb)
-
-### TraceReconstructor
+<!-- ### TraceReconstructor
 Use `TraceReconstructor` to pull out statistics and reconstruct synthetic traces of given real trace `trc` of length $n$, assume `trc` is block-addressable:
 ```Python
 trc_reconstructor = tg.TraceReconstructor(trc)
@@ -159,7 +144,7 @@ trc_irt_reconstructed = trc_reconstructor.gen_from_ird(n=100000)
 Frequency-based reconstruction:
 ```python
 trc_irm_reconstructed = trc_reconstructor.gen_from_irm(n=100000)
-```
+``` -->
 <!-- ### HASH-based sampling
 SHARDS item sampling:
 - $hash(a)$ mod $P < T$, where $P$ is the modulus (e.g. 100) and $T$ is the threshhold;
@@ -180,15 +165,13 @@ SHARDS item sampling:
 - PARDA binary trace format: a sequence of 64-bit references, with no additional metadata; need to convert I/O traces to the PARDA format, assume fixed cache block size,  ignore distinction between reads and writes;
 - either fixed-sample size ($M$) is suitable for online use in memory-constrained systems such as device deivers in embedded systems; uses automatic rate adaptation to eliminate the need to specify $R$. Starts with $R_0 = 0.1$, and lower progressively as more uunique addrs are encountered;
 - or fixed-rate sampling: fix $R$. -->
-### Trace simulation tools
-
-Provides relatively high-performance FIFO, LRU and CLOCK simulators.
-
+## Cache simulators
+We provide relatively high-performance FIFO, LRU and CLOCK simulators.
 usage: 
-```
-        f = tg.fifo(30000)
-        f.run(trace)
-        f.hitrate()
+```Python
+    f = tg.fifo(30000)
+    f.run(trace)
+    f.hitrate()
 ```
 
 `trace` is a numpy array of integer block addresses, preferably np.int32. (it will be converted to signed 32-bit if not already)
@@ -205,7 +188,7 @@ For clock there is a 4th return value, which is the number of items which were r
 
 There are some helper functions in `misc.py` - `sim_lru(C,trace,raw=False)`, and equivalently for FIFO and CLOCK. If `raw=False`, it returns adjusted hitrate (i.e. ignoring accesses while the cache was filling, this would cause non-monotone in LRU MRCs), while if `raw=True` it just calculates total hits vs accesses.
 
-#### Simulate LRU & FIFO & CLOCK cache hit rate:
+### Simulate cache hit rate:
 `tg` provides wrapper simulators that can be used as follows: 
 ```Python
 c = np.arange(M//100, M, M//100)
@@ -214,24 +197,19 @@ hr_trace1_fifo = [tg.sim_fifo(_c, trace1) for _c in c]
 hr_trace1_clock = [tg.sim_clock(_c, trace1) for _c in c]
 ```
 ### iad2.py
-Calculate inter-arrival distances
-
+Calculate the inter-reference distances of a given trace
 usage:
+```Python
+iad = iad2.iad(trace)
+np.plot(np.sort(iad), np.arange(len(iad))/len(iad))
 ```
-        trace = <something-or-other>
-        iad = iad2.iad(trace)
-        np.plot(np.sort(iad), np.arange(len(iad))/len(iad))
-```
-
-The trace is again a numpy array of integers. Memory usage is proportional to the max address value.
 
 ### Dummy synthetic traces
 
 The `misc` module contains the following functions:
-
 - `hc(r,f,M)` - return an address in [0,fM] with probability r, and one in [fM,M] with probability (1-r)
 - `t_hc(r,f,M)` - return an interarrival distance for r/f hot/cold traffic, chosen with probability r from the hot distribution and (1-r) from the cold one.
-- `gen_from_iad(f,M,n)` - generate a trace of `n` accesses from the interarrival distance function `f()` with memory size `M`.
+- `gen_from_iad(f,M,n)` - generate a trace of `n` accesses from the interarrival distance distribution `f` with memory size `M`.
 
 ### Cloudphysics traces, unroll.py
 
@@ -285,9 +263,9 @@ trace = tg.squash(trace[trace%17 == 0])
 (hmm, maybe I should have stored the expanded arrays, but they're quite big)
 
 ### AliCloud trace
-Under [pjd-rz:/mnt/sda/alibaba_block_traces_2020](pjd-rz:/mnt/sda/alibaba_block_traces_2020)
+Available at: https://github.com/alibaba/block-traces.
 The trace is quite long, combines all I/O operations recorded in one month's time frame, across 1000 sampled volumes (hard drives); volume number from 0 to 999.
-I splited the trace under each volume (still monstrously long). Addrs are 64-bit integer, offset and LBAs are in byte, therefore unrolling them with:
+I splited the trace under each volume (still monstrously long). Addrs are 64-bit integer, offset and LBAs are in byte, therefore you should unroll them with:
 ```python
 trace = np.loadtxt(file_path, dtype=np.int64)
 trace[:, 0] += 4095

@@ -327,5 +327,4 @@ layout = row(
     column(p2)
 )
 
-# # Show or add the layout to your document
 curdoc().add_root(layout)
