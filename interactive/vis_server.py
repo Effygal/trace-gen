@@ -11,11 +11,10 @@ N_MIN = 10000
 P_IRM_MIN = 0.0
 MAX_K = 100
 
-
 def fgen(k, indices, eps=1e-6):
-    l = np.full(k, eps)  # Initialize all elements to eps
+    l = np.full(k, eps)  
     s = len(indices)
-    l[indices] = (1 - eps) / s  # Assign spike values
+    l[indices] = (1 - eps) / s 
     l = l / l.sum()
     return np.arange(len(l)), l 
 
@@ -43,7 +42,6 @@ def mrc_compute(k, indices, eps, p_irm, M=100, n = 10000, irm_type=None, zipf_a=
     hr_lru = [tg.sim_lru(int(_c), t, raw=True) for _c in c]
     return c, hr_lru
 
-# Initial values
 indices = [1, 2]
 eps = 5e-3 
 MIN_K = max(indices) + 1
@@ -60,7 +58,7 @@ p.line(x='x', y='y', line_width=2, color='orange', source=fgen_source)
 p1 = figure(title="g", width=350, height=350)
 p1.line(x='x', y='y', line_width=2, color='green', source=fgen_source)
 
-p2 = figure(title="MRC", width=350, height=350)
+p2 = figure(title="HRC", width=350, height=350)
 p2.line(x='c', y='hr', line_width=2, source=mrc_source)
 
 indices_input = TextInput(
@@ -89,10 +87,9 @@ k_slider = Slider(
 )
 
 n_select = Select(
-    title="n", value="10000", options=["10000", "100000", "1000000", "10000000"]
+    title="N", value="10000", options=["10000", "100000", "1000000", "10000000"]
 )
 
-# Adding widgets for gset function parameters
 irm_type_select = Select(title="IRM Type", value="zipf", options=["zipf", "pareto", "normal", "uniform"])
 zipf_a_slider = Slider(title="Zipf a", value=1.2, start=1.0, end=10.0, step=0.1)
 pareto_a_slider = Slider(title="Pareto a", value=2.5, start=1.0, end=10.0, step=0.1)
@@ -102,7 +99,6 @@ normal_std_slider = Slider(title="Normal Std", value=int(M_select.value)//6, sta
 uniform_a_slider = Slider(title="Uniform a", value=0, start=0, end=int(M_select.value), step=10)
 uniform_b_slider = Slider(title="Uniform b", value=int(M_select.value), start=int(uniform_a_slider.value), end=int(M_select.value), step=10)
 
-# Initially hide all sliders
 zipf_a_slider.visible = True
 pareto_a_slider.visible = False
 pareto_xm_slider.visible = False
@@ -197,7 +193,7 @@ p_irm_slider.on_change('value', update_p_irm)
 
 def update_irm_type(attrname: str, old: str, new: str):
     print(f'old {attrname}: {old} -> {new}')
-    # Show or hide relevant sliders based on IRM type selection
+
     zipf_a_slider.visible = new == 'zipf'
     pareto_a_slider.visible = new == 'pareto'
     pareto_xm_slider.visible = new == 'pareto'
@@ -295,35 +291,12 @@ def update_uniform_b(attrname: str, old: float, new: float):
 
 uniform_b_slider.on_change('value', update_uniform_b)
 
-# layout = row(
-#     column(M_select, n_select, k_slider, indices_input, eps_input, p),
-#     column(p_irm_slider, irm_type_select, zipf_a_slider, pareto_a_slider, pareto_xm_slider, normal_mean_slider, normal_std_slider, uniform_a_slider, uniform_b_slider, p2)
-# )
-
-
-# f_title = Label(text="f", text_font_size="20pt", text_font_style="bold")
-# g_title = Label(text="g", text_font_size="20pt", text_font_style="bold")
-# # Define column "f" with its label
-# f = column(f_title, k_slider, indices_input, eps_input)
-
-# # Define column "g" with its label
-# g = column(g_title, irm_type_select, zipf_a_slider, pareto_a_slider, pareto_xm_slider, 
-#            normal_mean_slider, normal_std_slider, uniform_a_slider, uniform_b_slider)
-
-# # Create the layout, using the defined modules
-# layout = row(
-#     column(M_select, n_select),  # First column
-#     f,  # Second column, now with label "f"
-#     g,  # Third column, now with label "g"
-#     column(p_irm_slider, p2)  # Fourth column
-# )
-
 layout = row(
     column(M_select), 
     column(n_select), 
     column(f_title, k_slider, indices_input, eps_input), 
     column(g_title, irm_type_select, zipf_a_slider, pareto_a_slider, pareto_xm_slider, normal_mean_slider, normal_std_slider, uniform_a_slider, uniform_b_slider),
-    column(p_irm_slider),  # Fourth column
+    column(p_irm_slider), 
     column(p2)
 )
 

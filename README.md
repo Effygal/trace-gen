@@ -20,7 +20,7 @@ Allowed options:
                                   fgen:10000:0.00001:3,5,10,20
   -g [ --irm ] arg (=zipf:1.2,20) IRM distribution. Can be: zipf:alpha,n,
                                   pareto:xm,a,n, uniform:max,
-                                  normal:mean,stddev).
+                                  normal:mean,stddev.
   -r [ --rwratio ] arg (=1)       Fraction of addresses that are reads (vs
                                   writes)
   -z [ --sizedist ] arg (=1:1)    Distribution of request sizes in
@@ -115,14 +115,10 @@ bokeh serve --show vis_server.py --port <port>
 ```
 
 #### Vary the IRM fraction $p \in [0, 1]$:
-- When $p=0.5$, the trace is 50% freq-based and 50% ird-based, MRC convex/concave behavior shows evenly combined:
 
-- When $p = 1$, the trace is 100% freqency-based, MRC behaves convex.
+- $p = 1$ ---> the output trace is 100% freqency-based ---> HRC concave.
 
-- When $p=0$, the trace is 100% ird-based, MRC behaves (somewhat) concave:
-
-- When $p=0.2$, the trace is 20% frequency-based and 80% ird-based, MRC behaves somewhat mixed:
-etc.
+- $p=0$ ---> the output trace is 100% recency-based.
 
 #### vary f
 
