@@ -35,19 +35,19 @@ Examples:
 ```
 # 100 address footprint, 10k trace length, 50% IRM, type 'c' IRD, 4k block size, 
 # 50% reads, 50% writes, sizes are evenly distributed between 1 and 2 blocks
-./trace-gen -m 100 -n 10000 -p 0.5 -f c -r 0.5 -z 1,1:1,2
+trace-gen -m 100 -n 10000 -p 0.5 -f c -r 0.5 -z 1,1:1,2
 
 # seed rng with 42
-./trace-gen -m 100 -n 10000 -p 0.5 -f c -r 0.5 -z 1,1:1,2 -s 42
+trace-gen -m 100 -n 10000 -p 0.5 -f c -r 0.5 -z 1,1:1,2 -s 42
 
 # make the trace all reads instead (default behaviour)
-./trace-gen -m 100 -n 10000 -p 0.5 -f c -z 1,1:1,2 -s 42
+trace-gen -m 100 -n 10000 -p 0.5 -f c -z 1,1:1,2 -s 42
 
 # have a 25/25/50 split of 1, 3, and 4 block requests
-./trace-gen -m 100 -n 10000 -p 0.5 -f c -z 1,1,2:1,3,4 -s 42
+trace-gen -m 100 -n 10000 -p 0.5 -f c -z 1,1,2:1,3,4 -s 42
 
 # set blocksize to one (so generated addresses are adjacent)
-./trace-gen -m 100 -n 10000 -p 0.5 -f c -z 1,1,2:1,3,4 -s 42 -b 1
+trace-gen -m 100 -n 10000 -p 0.5 -f c -z 1,1,2:1,3,4 -s 42 -b 1
 ```
 Output traces are in SPC format.
 
