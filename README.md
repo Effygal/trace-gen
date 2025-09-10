@@ -34,6 +34,7 @@ Examples:
 
 ```
 # 100 address footprint, 10k trace length, 50% IRM, type 'c' IRD, 4k block size, 
+trace-gen -m 100 -n 10000 -p 0.5 -f c -b 4096
 # 50% reads, 50% writes, sizes are evenly distributed between 1 and 2 blocks
 trace-gen -m 100 -n 10000 -p 0.5 -f c -r 0.5 -z 1,1:1,2
 
