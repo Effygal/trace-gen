@@ -65,7 +65,7 @@ class TraceGenerator:
         self.irm_type = irm_type
 
     def set_ird_pdf(self, pdf):
-        self.ird_pdf = pdf
+        self.pdf = pdf
     
     def set_irds(self, irds):
         self.irds = irds
@@ -135,7 +135,7 @@ class TraceGenerator:
         tmax = (self.M * n) / weighted_sum
 
         bin_width = tmax / n
-        bin_edges = np.array([i * bin_width for i in range(n + 1)])
+        bin_edges = np.array([i * bin_width for i in range(n + 1)]) 
         self.bin_edges = bin_edges
         self.tmax = tmax
         # return T, bins
