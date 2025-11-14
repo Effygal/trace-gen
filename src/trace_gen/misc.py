@@ -6,6 +6,7 @@ import trace_gen.lru_wrapper as lru
 import trace_gen.fifo_wrapper as fifo
 import trace_gen.clock_wrapper as clock
 # import trace_gen.arc_wrapper as arc
+import trace_gen.ran_clock_wrapper as ran_clock
 import heapq
 import numpy as np
 import random
@@ -186,6 +187,15 @@ def sim_lru(C, trace, raw=True):
         return 1 - m/a
     else:
         return l.hitrate()
+
+def sim_ran_clock(C, trace, raw=True):
+    rc = ran_clock.ran_clock(C)
+    rc.run(trace)
+    if raw:
+        a, m, c, r, x, y = rc.data()
+        return 1 - m/a
+    else:
+        return rc.hitrate() 
 
 # def sim_arc(C, trace, raw=True):
 #     a = arc.arc(C)
