@@ -20,8 +20,7 @@ namespace py = pybind11;
  */
 
 class LRU {
- 
-	int M = 0;
+
 	int C = 0;
 	std::vector<int> map; // track item position in cache
 	int tail = 0, head = 0;
@@ -57,10 +56,10 @@ public:
 	void verify(void)
 	{
 		for (int i = tail; i < head; i++)
-			assert(cache[i] == -1 || map[cache[i]] == i); //assert invalid cache entry or item has been record correctly in map
+			assert(cache[i] == -1 || map[cache[i]] == i); 
 		for (unsigned int i = 0; i < map.size(); i++)
 		{
-			assert(map[i] == -1 || cache[map[i]] == i); //assert invalid map entry or item in map and has correct record of index in cache 
+			assert(map[i] == -1 || cache[map[i]] == i);
 			assert(map[i] < head);
 		}
 	}
@@ -75,7 +74,7 @@ public:
 		return n;
 	}
 
-	void pull(int addr) //erase item record
+	void pull(int addr) 
 	{
 		assert(map[addr] != -1);
 		cache[map[addr]] = -1;
@@ -83,7 +82,7 @@ public:
 		len--;
 	}
 
-	int pop(void) //remove item from tail
+	int pop(void)
 	{
 		while (cache[tail] == -1)
 			tail++;
@@ -106,7 +105,7 @@ public:
 			tail = 0;
 			head = j;
 		}
-		map[addr] = head; //insert item from head, track index
+		map[addr] = head;
 		cache[head++] = addr;
 		len++;
 	}
@@ -121,7 +120,7 @@ public:
 		if (map[addr] == -1)
 			n_miss++;
 		else
-			pull(addr); //hit erase
+			pull(addr); 
 		push(addr);
 		if (len > C)
 			pop();
