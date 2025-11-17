@@ -120,7 +120,7 @@ module = py.extension_module(
 
 module = py.extension_module(
     '_ran_clock',
-    sources: ['src/trace_gen/rand-clock.cpp'],
+    sources: ['src/trace_gen/ran-clock.cpp'],
     include_directories: includes,
     install: true,
     cpp_args: _cpp_args,

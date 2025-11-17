@@ -2,6 +2,7 @@
 #include <vector>
 #include <set>
 #include <unordered_set>
+#include <algorithm>
 #include <stdint.h>
 #include <random>
 #include <pybind11/pybind11.h>
@@ -20,12 +21,10 @@ class ran_clock
 
 	std::vector<int> enter; // time item entered cache
 	std::vector<int> ref;	// time item last referenced
-	std::vector<int> top;	// most recent time at top of cache
-
+	
 	int n_top = 0;
 	double sum_top = 0, sum_top2 = 0;
 
-	int ptr = 0, len = 0;
 	int in = 0, out = 0;
 
 	int n_cachefill = 0;
@@ -36,6 +35,7 @@ class ran_clock
 	int sum_abit = 0;
 
 	std::mt19937 rng;
+	int in_ptr = -1;
 
 public:
 	ran_clock(int _C) : rng(std::random_device{}())
@@ -55,26 +55,96 @@ public:
 
 	int pop(void)
 	{
-		int32_t addr = cache[out];
-		int age = (n_access - t_enter[out]);
-		out = (out + 1) % (C + 1);
-		map[addr] = false;
+		if (C == 0)
+			return -1;
+		std::uniform_int_distribution<int> dist(0, C - 1);
+		while (true)
+		{
+			int offset = dist(rng);
+			int slot = (out + offset) % (C + 1);
+			int32_t addr = cache[slot];
+			n_examined++;
+			if (abit[addr])
+			{
+				sum_abit += abit[addr];
+				abit[addr] = 0;
+				n_recycle++;
+			}
+			else
+			{
+				int age = (n_access - t_enter[slot]);
+				sum_top += age;
+				sum_top2 += (age * age);
+				n_top++;
+				map[addr] = false;
+				in_ptr = slot;
+				return addr;
+			}
+		}
+	}
+
+	int pop_no_rp(void)
+	{
+		if (C == 0)
+			return -1;
+		std::vector<int> offsets(C);
+		for (int i = 0; i < C; i++)
+			offsets[i] = i;
+		std::shuffle(offsets.begin(), offsets.end(), rng);
+
+		int fallback_slot = -1;
+		int32_t fallback_addr = -1;
+
+		for (int idx = 0; idx < C; idx++)
+		{
+			int slot = (out + offsets[idx]) % (C + 1);
+			int32_t addr = cache[slot];
+			n_examined++;
+			if (abit[addr])
+			{
+				sum_abit += abit[addr];
+				abit[addr] = 0;
+				n_recycle++;
+				if (fallback_slot == -1)
+				{
+					fallback_slot = slot;
+					fallback_addr = addr;
+				}
+				continue;
+			}
+
+			int age = (n_access - t_enter[slot]);
+			sum_top += age;
+			sum_top2 += (age * age);
+			n_top++;
+			map[addr] = false;
+			in_ptr = slot;
+			return addr;
+		}
+
+		// All had abit set; evict the first one we touched after clearing bits.
+		int age = (n_access - t_enter[fallback_slot]);
 		sum_top += age;
 		sum_top2 += (age * age);
 		n_top++;
-		return addr;
+		map[fallback_addr] = false;
+		in_ptr = fallback_slot;
+		return fallback_addr;
 	}
 
 	void push(int32_t addr)
 	{
-		cache[in] = addr;
-		t_enter[in] = n_access;
-		in = (in + 1) % (C + 1);
+		int slot = (in_ptr != -1) ? in_ptr : in;
+		cache[slot] = addr;
+		t_enter[slot] = n_access;
+		if (in_ptr == -1)
+			in = (in + 1) % (C + 1);
+		else
+			in_ptr = -1;
 		map[addr] = true;
 		abit[addr] = false;
 	}
 
-	// must have enough space for C entries
 	int contents(py::array_t< int >& val)
 	{
 		int* val_ptr = val.mutable_data();
@@ -94,7 +164,7 @@ public:
 		if (addr >= map.size())
 		{
 			int n = addr * 3 / 2;
-			map.resize(n, 0); // like, resize to n, and append 0 to the vector.
+			map.resize(n, 0); 
 			abit.resize(n, 0);
 		}
 
@@ -108,36 +178,11 @@ public:
 			}
 			else
 			{
-				if (C == 0)
+				// int evictee = pop();
+				int evictee = pop_no_rp();
+				if (evictee == -1)
 					return;
-				std::uniform_int_distribution<int> dist(0, C - 1);
-				while (true)
-				{
-					int offset = dist(rng);
-					int slot = (out + offset) % (C + 1);
-					int evictee = cache[slot];
-					n_examined++;
-					if (abit[evictee])
-					{
-						sum_abit += abit[evictee];
-						abit[evictee] = 0;
-						n_recycle++;
-					}
-					else
-					{
-						int age = (n_access - t_enter[slot]);
-						sum_top += age;
-						sum_top2 += (age * age);
-						n_top++;
-						map[evictee] = false;
-
-						cache[slot] = addr;
-						t_enter[slot] = n_access;
-						map[addr] = true;
-						abit[addr] = false;
-						break;
-					}
-				}
+				push(addr);
 			}
 		}
 		else
@@ -168,41 +213,19 @@ public:
 			}
 			else
 			{
-				if (C == 0)
+				// int evictee = pop();
+				int evictee = pop_no_rp();
+				if (evictee == -1)
 					return;
-				std::uniform_int_distribution<int> dist(0, C - 1);
-				while (true)
+				if (miss)
 				{
-					int offset = dist(rng);
-					int slot = (out + offset) % (C + 1);
-					int evictee = cache[slot];
-					if (abit[evictee])
-					{
-						abit[evictee] = false;
-						n_recycle++;
-					}
-					else
-					{
-						if (miss)
-						{
-							*miss = 1;
-							*evict_addr = evictee;
-							*ref_age = n_access - ref[evictee];
-							*enter_age = n_access - enter[evictee];
-						}
-						int age = (n_access - t_enter[slot]);
-						sum_top += age;
-						sum_top2 += (age * age);
-						n_top++;
-						map[evictee] = false;
-						cache[slot] = addr;
-						t_enter[slot] = n_access;
-						map[addr] = true;
-						abit[addr] = false;
-						enter[addr] = ref[addr] = n_access;
-						break;
-					}
+					*miss = 1;
+					*evict_addr = evictee;
+					*ref_age = n_access - ref[evictee];
+					*enter_age = n_access - enter[evictee];
 				}
+				push(addr);
+				enter[addr] = ref[addr] = n_access;
 			}
 		}
 		else
@@ -240,7 +263,7 @@ public:
 
 		enter.resize(100000);
 		ref.resize(100000);
-		top.resize(100000);
+		
 		for (int i = 0; i < n; i++)
 			access_verbose(addrs_ptr[i], &evicted_ptr[i], &misses_ptr[i], &age1_ptr[i], &age2_ptr[i]);
 	}

@@ -16,17 +16,13 @@ class clock1
 	std::vector<int> t_enter;
 	std::vector<int> abit;
 	std::vector<char> map;
-
 	std::vector<int> enter; // time item entered cache
 	std::vector<int> ref;	// time item last referenced
-	std::vector<int> top;	// most recent time at top of cache
 
 	int n_top = 0;
 	double sum_top = 0, sum_top2 = 0;
 
-	int ptr = 0, len = 0;
 	int in = 0, out = 0;
-
 	int n_cachefill = 0;
 	int n_access = 0;
 	int n_miss = 0;
@@ -203,7 +199,6 @@ public:
 
 		enter.resize(100000);
 		ref.resize(100000);
-		top.resize(100000);
 		for (int i = 0; i < n; i++)
 			access_verbose(addrs_ptr[i], &evicted_ptr[i], &misses_ptr[i], &age1_ptr[i], &age2_ptr[i]);
 	}

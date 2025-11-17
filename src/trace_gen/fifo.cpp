@@ -19,8 +19,6 @@ class fifo
 	double s_evict = 0;
 	double s2_evict = 0;
 
-	// std::unordered_set<int> map;
-	//    std::set<int> map;
 	std::vector<char> map;
 
 	int in = 0, out = 0;
@@ -73,7 +71,6 @@ public:
 		assert(0 <= in && in < C + 1 && 0 <= out && out < C + 1);
 	}
 
-	// must have enough space for C entries
 	int contents(py::array_t<int>& val)
 	{
 		int *val_ptr = val.mutable_data();
