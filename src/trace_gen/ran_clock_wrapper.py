@@ -11,31 +11,28 @@ class ran_clock:
     def run(self, trace, rp=True):
         if type(trace[0]) != np.int32:
             trace = np.array(trace, dtype=np.int32)
-        if rp:
-            _ran_clock.ran_clock_run(self.f, len(trace), trace)
-        else:
-            _ran_clock.ran_clock_run_no_rp(self.f, len(trace), trace)
+        _ran_clock.ran_clock_run(self.f, len(trace), trace, rp)
 
     def contents(self):
         val = np.zeros(self.C, dtype=np.int32)
         n = _ran_clock.ran_clock_contents(self.f, val)
         return val[:n]
 
-    def run_parts(self, trace, n):
+    def run_parts(self, trace, n, rp=True):
         a0, m0, vals = 0, 0, []
         for i in range(0, len(trace), n):
             t = np.array(trace[i:i+n], dtype=np.int32)
-            self.run(t)
+            self.run(t, rp)
             a, m, c, r, x, y = self.data()
             vals.append(1 - (m - m0)/(a - a0))
             a0, m0 = a, m
         return np.array(vals)
 
-    def run_slices(self, trace, n):
+    def run_slices(self, trace, n, rp=True):
         sliced_contents = []
         for i in range(0, len(trace), n):
             t = np.array(trace[i:i+n], dtype=np.int32)
-            self.run(t)
+            self.run(t, rp)
             contents = self.contents()
             sliced_contents.append(contents)
         return sliced_contents
@@ -47,10 +44,7 @@ class ran_clock:
         evicted = np.zeros(len(trace), dtype=np.int32)
         age1 = np.zeros(len(trace), dtype=np.int32)
         age2 = np.zeros(len(trace), dtype=np.int32)
-        if rp:
-            _ran_clock.ran_clock_run_age(self.f, len(trace), trace, evicted, misses, age1, age2)
-        else:
-            _ran_clock.ran_clock_run_age_no_rp(self.f, len(trace), trace, evicted, misses, age1, age2)
+        _ran_clock.ran_clock_run_age(self.f, len(trace), trace, evicted, misses, age1, age2, rp)
         return [age1, age2, misses]
 
     def hitrate(self):
