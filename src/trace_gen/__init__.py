@@ -9,4 +9,5 @@ from .TraceGenerator import *
 from .fifo_wrapper import *
 from .clock_wrapper import *
 from .ran_clock_wrapper import *
+from .sieve_wrapper import *
 # from .arc_wrapper import *

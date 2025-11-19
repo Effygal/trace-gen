@@ -1,23 +1,21 @@
 # misc functions for simulating hot/cold traffic, resampling, etc.
-#
 
 import pickle
 import trace_gen.lru_wrapper as lru
 import trace_gen.fifo_wrapper as fifo
 import trace_gen.clock_wrapper as clock
+import trace_gen.sieve_wrapper as sieve
 # import trace_gen.arc_wrapper as arc
 import trace_gen.ran_clock_wrapper as ran_clock
 import heapq
 import numpy as np
 import random
 
-
 def hc(r, f, M):
     if random.random() < r:
         return random.randint(0, int(f*M)-1)
     else:
         return random.randint(int(f*M), M-1)
-
 
 def hc_trace(r, f, M, n):
     trc = np.zeros(n, dtype=np.int32)
@@ -27,7 +25,6 @@ def hc_trace(r, f, M, n):
         else:
             trc[i] = random.randint(int(f*M), M-1)
     return trc
-
 
 def t_hc(r, f, M):
     if random.random() < r:
@@ -59,7 +56,7 @@ def gen_he(r,f,M,n):
 
 def gen_from_ird(f, M, n):
     """
-    f is a function that returns a pair of (addr: int, is_hot_or_cold: bool)
+    f is a function returns a tuple (addr: int, is_hot: bool)
     """
     h = []
     for i in range(M):
@@ -89,12 +86,10 @@ def gen_from_ird2(f, M, n):
         if t == -1: 
             addrs.append(a0)
             a0 += 1
-
         else:  
             t0, addr = h[0]
             addrs.append(addr)
             heapq.heapreplace(h, [t0+t, addr])
-
     return np.array(addrs, dtype=np.int32)
 
 def gen_from_both(f, g,  M, n, irm_frac=0):
@@ -127,16 +122,13 @@ def gen_from_both(f, g,  M, n, irm_frac=0):
     return np.array(addrs, dtype=np.int32)
 
 def gen_from_both_verbose(f, g,  M, n, irm_frac=0):
-
     h = []
     a0 = 0
-
     while len(h) < M:
         t = f()
         if t != -1:
             heapq.heappush(h, [t, a0])
             a0 += 1
-
     addrs = []
     is_irm = []
     time_var = []
@@ -158,7 +150,6 @@ def gen_from_both_verbose(f, g,  M, n, irm_frac=0):
             is_irm.append(False)
             time_var.append(t0-count)
         count += 1
-
     return np.array(addrs, dtype=np.int32), np.array(is_irm, dtype=bool), np.array(time_var, dtype=np.int32)
 
 def sim_fifo(C, trace, raw=True):
@@ -188,15 +179,24 @@ def sim_lru(C, trace, raw=True):
     else:
         return l.hitrate()
 
-def sim_ran_clock(C, trace, raw=True):
+def sim_ran_clock(C, trace, raw=True, rp=True):
     rc = ran_clock.ran_clock(C)
-    rc.run(trace)
+    rc.run(trace, rp=rp)
     if raw:
         a, m, c, r, x, y = rc.data()
         return 1 - m/a
     else:
         return rc.hitrate() 
 
+def sim_sieve(C, trace, raw=True):
+    s = sieve.sieve(C)
+    s.run(trace)
+    if raw:
+        a, m, *_ = s.data()
+        return 1 - m/a
+    else:
+        return s.hitrate()
+    
 # def sim_arc(C, trace, raw=True):
 #     a = arc.arc(C)
 #     a.run(trace)
@@ -224,7 +224,6 @@ def to_pickle(var, f):
     fp = open(f, 'wb')
     pickle.dump(var, fp)
     fp.close()
-
 
 def fgen(k, indices, eps=1e-6):
     l = np.full(k, eps)  
