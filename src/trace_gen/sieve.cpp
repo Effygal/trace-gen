@@ -13,7 +13,7 @@ class sieve
 	int C = 0;
 	std::list<int> cache; // front = head (newest), back = tail (oldest)
 	std::vector<char> map;		  
-	std::vector<char> abit;	   
+	std::vector<int> abit;	   
 	std::vector<int> enter_time;   
 	std::vector<int> ref_time;	   
 	int n_top = 0;
@@ -104,8 +104,6 @@ class sieve
 		map[addr] = 1;
 		abit[addr] = 0;
 		enter_time[addr] = ref_time[addr] = n_access;
-		if (static_cast<int>(cache.size()) > C)
-			cache.pop_back(); // safety; should not trigger
 	}
 
 public:
@@ -123,7 +121,6 @@ public:
 		return static_cast<int>(cache.size()) >= C;
 	}
 
-	// must have enough space for C entries
 	int contents(py::array_t< int >& val)
 	{
 		int* val_ptr = val.mutable_data();
@@ -155,7 +152,7 @@ public:
 		}
 		else
 		{
-			abit[addr] = 1;
+			abit[addr] += 1;
 			ref_time[addr] = n_access;
 		}
 	}
@@ -202,7 +199,7 @@ public:
 		}
 		else
 		{
-			abit[addr] = 1;
+			abit[addr] += 1;
 			ref_time[addr] = n_access;
 		}
 	}

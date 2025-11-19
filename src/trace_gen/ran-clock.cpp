@@ -24,9 +24,7 @@ class ran_clock
 	
 	int n_top = 0;
 	double sum_top = 0, sum_top2 = 0;
-
 	int in = 0, out = 0;
-
 	int n_cachefill = 0;
 	int n_access = 0;
 	int n_miss = 0;
@@ -37,16 +35,7 @@ class ran_clock
 	std::mt19937 rng;
 	int in_ptr = -1;
 
-public:
-	ran_clock(int _C) : rng(std::random_device{}())
-	{
-		C = _C;
-		cache.resize(C + 1);
-		t_enter.resize(C + 1);
-		map.resize(100000, 0);
-		abit.resize(100000, 0);
-	}
-	~ran_clock() {}
+private:
 
 	bool full(void)
 	{
@@ -145,89 +134,26 @@ public:
 		abit[addr] = false;
 	}
 
-	int contents(py::array_t< int >& val)
-	{
-		int* val_ptr = val.mutable_data();
-		int i, n;
-		for (i = (in + C) % (C + 1), n = 0;; i = (i + C) % (C + 1))
-		{
-			val_ptr[n++] = cache[i];
-			if (i == out)
-				break;
-		}
-		return n;
-	}
-
-	void access(int32_t addr)
+	void access_common(int32_t addr, bool rp, bool verbose,
+					   int32_t* evict_addr = nullptr, int* miss = nullptr,
+					   int* ref_age = nullptr, int* enter_age = nullptr)
 	{
 		n_access++;
 		if (addr >= map.size())
 		{
-			int n = addr * 3 / 2;
-			map.resize(n, 0); 
-			abit.resize(n, 0);
-		}
-
-		if (!map[addr])
-		{
-			n_miss++;
-			if (!full())
-			{
-				n_cachefill = n_access;
-				push(addr);
-			}
-			else
-			{
-				// int evictee = pop();
-				int evictee = pop_no_rp();
-				if (evictee == -1)
-					return;
-				push(addr);
-			}
-		}
-		else
-			abit[addr] += 1;
-	}
-
-	void access_no_rp(int32_t addr)
-	{
-		n_access++;
-		if (addr >= map.size())
-		{
-			int n = addr * 3 / 2;
-			map.resize(n, 0); 
-			abit.resize(n, 0);
-		}
-
-		if (!map[addr])
-		{
-			n_miss++;
-			if (!full())
-			{
-				n_cachefill = n_access;
-				push(addr);
-			}
-			else
-			{
-				int evictee = pop_no_rp();
-				if (evictee == -1)
-					return;
-				push(addr);
-			}
-		}
-		else
-			abit[addr] += 1;
-	}
-
-	void access_verbose(int32_t addr, int32_t* evict_addr, int* miss,
-						int* ref_age, int* enter_age)
-	{
-		n_access++;
-		if (addr >= map.size())
-		{
-			int n = addr * 3 / 2;
+			int n = std::max(addr * 3 / 2, addr + 1);
 			map.resize(n, 0);
 			abit.resize(n, 0);
+			if (verbose)
+			{
+				enter.resize(n, 0);
+				ref.resize(n, 0);
+			}
+		}
+
+		if (verbose && addr >= enter.size())
+		{
+			int n = std::max(addr * 3 / 2, addr + 1);
 			enter.resize(n, 0);
 			ref.resize(n, 0);
 		}
@@ -239,89 +165,71 @@ public:
 			{
 				n_cachefill = n_access;
 				push(addr);
-				enter[addr] = ref[addr] = n_access;
+				if (verbose)
+					enter[addr] = ref[addr] = n_access;
 			}
 			else
 			{
-				// int evictee = pop();
-				int evictee = pop_no_rp();
+				int evictee = rp ? pop() : pop_no_rp();
 				if (evictee == -1)
 					return;
-				if (miss)
+				if (verbose)
 				{
-					*miss = 1;
-					*evict_addr = evictee;
-					*ref_age = n_access - ref[evictee];
-					*enter_age = n_access - enter[evictee];
+					if (evictee >= enter.size())
+					{
+						int n = std::max(evictee * 3 / 2, evictee + 1);
+						enter.resize(n, 0);
+						ref.resize(n, 0);
+					}
+					if (miss)
+					{
+						*miss = 1;
+						*evict_addr = evictee;
+						*ref_age = n_access - ref[evictee];
+						*enter_age = n_access - enter[evictee];
+					}
 				}
 				push(addr);
-				enter[addr] = ref[addr] = n_access;
+				if (verbose)
+					enter[addr] = ref[addr] = n_access;
 			}
 		}
 		else
 		{
-			abit[addr] = true;
-			ref[addr] = n_access;
+			abit[addr] += 1;
+			if (verbose)
+				ref[addr] = n_access;
 		}
 	}
 
-	void access_verbose_no_rp(int32_t addr, int32_t* evict_addr, int* miss,
+public:
+
+	ran_clock(int _C) : rng(std::random_device{}())
+	{
+		C = _C;
+		cache.resize(C + 1);
+		t_enter.resize(C + 1);
+		map.resize(100000, 0);
+		abit.resize(100000, 0);
+	}
+	~ran_clock() {}
+
+	void access(int32_t addr, bool rp)
+	{
+		access_common(addr, rp, false);
+	}
+
+	void access_verbose(int32_t addr, bool rp, int32_t* evict_addr, int* miss,
 						int* ref_age, int* enter_age)
 	{
-		n_access++;
-		if (addr >= map.size())
-		{
-			int n = addr * 3 / 2;
-			map.resize(n, 0);
-			abit.resize(n, 0);
-			enter.resize(n, 0);
-			ref.resize(n, 0);
-		}
-
-		if (!map[addr])
-		{
-			n_miss++;
-			if (!full())
-			{
-				n_cachefill = n_access;
-				push(addr);
-				enter[addr] = ref[addr] = n_access;
-			}
-			else
-			{
-				int evictee = pop_no_rp();
-				if (evictee == -1)
-					return;
-				if (miss)
-				{
-					*miss = 1;
-					*evict_addr = evictee;
-					*ref_age = n_access - ref[evictee];
-					*enter_age = n_access - enter[evictee];
-				}
-				push(addr);
-				enter[addr] = ref[addr] = n_access;
-			}
-		}
-		else
-		{
-			abit[addr] = true;
-			ref[addr] = n_access;
-		}
+		access_common(addr, rp, true, evict_addr, miss, ref_age, enter_age);
 	}
 
-	void multi_access(int n, py::array_t< int32_t >& addrs)
+	void multi_access(int n, py::array_t< int32_t >& addrs, bool rp = true)
 	{
 		int32_t* addrs_ptr = addrs.mutable_data();
 		for (int i = 0; i < n; i++)
-			access(addrs_ptr[i]);
-	}
-
-	void multi_access_no_rp(int n, py::array_t< int32_t >& addrs)
-	{
-		int32_t* addrs_ptr = addrs.mutable_data();
-		for (int i = 0; i < n; i++)
-			access_no_rp(addrs_ptr[i]);
+			access(addrs_ptr[i], rp);
 	}
 
 	void queue_stats(py::array_t< int >& n, py::array_t<double>& sum, py::array_t<double>& sum2)
@@ -335,7 +243,7 @@ public:
 	}
 
 	void multi_access_age(int n, py::array_t< int32_t >& addrs, py::array_t< int >& evicted, py::array_t< int >& misses,
-						  py::array_t< int >& age1, py::array_t< int >& age2)
+						  py::array_t< int >& age1, py::array_t< int >& age2, bool rp = true)
 	{
 		int32_t* addrs_ptr = addrs.mutable_data();
 		int* evicted_ptr = evicted.mutable_data();
@@ -347,29 +255,26 @@ public:
 		ref.resize(100000);
 		
 		for (int i = 0; i < n; i++)
-			access_verbose(addrs_ptr[i], &evicted_ptr[i], &misses_ptr[i], &age1_ptr[i], &age2_ptr[i]);
-	}
-
-	void multi_access_age_no_rp(int n, py::array_t< int32_t >& addrs, py::array_t< int >& evicted, py::array_t< int >& misses,
-						  py::array_t< int >& age1, py::array_t< int >& age2)
-	{
-		int32_t* addrs_ptr = addrs.mutable_data();
-		int* evicted_ptr = evicted.mutable_data();
-		int* misses_ptr = misses.mutable_data();
-		int* age1_ptr = age1.mutable_data();
-		int* age2_ptr = age2.mutable_data();
-
-		enter.resize(100000);
-		ref.resize(100000);
-		
-		for (int i = 0; i < n; i++)
-			access_verbose_no_rp(addrs_ptr[i], &evicted_ptr[i], &misses_ptr[i], &age1_ptr[i], &age2_ptr[i]);
+			access_verbose(addrs_ptr[i], rp, &evicted_ptr[i], &misses_ptr[i], &age1_ptr[i], &age2_ptr[i]);
 	}
 
 	double hit_rate(void)
 	{
 		double miss_rate = (n_miss - C) * 1.0 / (n_access - n_cachefill);
 		return 1 - miss_rate;
+	}
+
+	int contents(py::array_t< int >& val)
+	{
+		int* val_ptr = val.mutable_data();
+		int i, n;
+		for (i = (in + C) % (C + 1), n = 0;; i = (i + C) % (C + 1))
+		{
+			val_ptr[n++] = cache[i];
+			if (i == out)
+				break;
+		}
+		return n;
 	}
 
 	void data(int &_access, int &_miss, int &_cachefill, int &_recycle,
@@ -388,37 +293,27 @@ PYBIND11_MODULE(_ran_clock, m)
 {
 	py::class_<ran_clock>(m, "ran_clock")
 		.def(py::init<int>())
-		.def("multi_access", &ran_clock::multi_access)
-		.def("multi_access_no_rp", &ran_clock::multi_access_no_rp)
+		.def("multi_access", &ran_clock::multi_access, py::arg("n"), py::arg("addrs"), py::arg("rp") = true)
 		.def("contents", &ran_clock::contents)
-		.def("multi_access_age", &ran_clock::multi_access_age)
-		.def("multi_access_age_no_rp", &ran_clock::multi_access_age_no_rp)
+		.def("multi_access_age", &ran_clock::multi_access_age, py::arg("n"), py::arg("addrs"), py::arg("evicted"), py::arg("misses"), py::arg("age1"), py::arg("age2"), py::arg("rp") = true)
 		.def("queue_stats", &ran_clock::queue_stats)
 		.def("hit_rate", &ran_clock::hit_rate)
 		.def("data", &ran_clock::data);
 	m.def("ran_clock_create", [](int C) {
 		return new ran_clock(C);
 	});
-	m.def("ran_clock_run", [](void* _c, int n, py::array_t< int32_t >& a) {
+	m.def("ran_clock_run", [](void* _c, int n, py::array_t< int32_t >& a, bool rp) {
 		ran_clock* c = (ran_clock *)_c;
-		c->multi_access(n, a);
-	});
-	m.def("ran_clock_run_no_rp", [](void* _c, int n, py::array_t< int32_t >& a) {
-		ran_clock* c = (ran_clock *)_c;
-		c->multi_access_no_rp(n, a);
-	});
+		c->multi_access(n, a, rp);
+	}, py::arg("handle"), py::arg("n"), py::arg("addrs"), py::arg("rp") = true);
 	m.def("ran_clock_contents", [](void* _c, py::array_t< int >& out) {
 		ran_clock* c = (ran_clock *)_c;
 		return c->contents(out);
 	});
-	m.def("ran_clock_run_age", [](void* _c, int n, py::array_t< int32_t >& a, py::array_t< int >& b, py::array_t< int >& c, py::array_t< int >& d, py::array_t< int >& e) {
+	m.def("ran_clock_run_age", [](void* _c, int n, py::array_t< int32_t >& a, py::array_t< int >& b, py::array_t< int >& c, py::array_t< int >& d, py::array_t< int >& e, bool rp) {
 		ran_clock* cl = (ran_clock *)_c;
-		cl->multi_access_age(n, a, b, c, d, e);
-	});
-	m.def("ran_clock_run_age_no_rp", [](void* _c, int n, py::array_t< int32_t >& a, py::array_t< int >& b, py::array_t< int >& c, py::array_t< int >& d, py::array_t< int >& e) {
-		ran_clock* cl = (ran_clock *)_c;
-		cl->multi_access_age_no_rp(n, a, b, c, d, e);
-	});
+		cl->multi_access_age(n, a, b, c, d, e, rp);
+	}, py::arg("handle"), py::arg("n"), py::arg("addrs"), py::arg("evicted"), py::arg("misses"), py::arg("age1"), py::arg("age2"), py::arg("rp") = true);
 	m.def("ran_clock_queue_stats", [](void* _c, py::array_t< int >& n, py::array_t< double >& sum, py::array_t< double >& sum2) {
 		ran_clock* c = (ran_clock *)_c;
 		c->queue_stats(n, sum, sum2);
@@ -427,15 +322,10 @@ PYBIND11_MODULE(_ran_clock, m)
 		ran_clock* c = (ran_clock *)_c;
 		return c->hit_rate();
 	});
-	m.def("ran_clock_data", [](py::object _c) -> py::tuple {
-		if (py::isinstance<ran_clock>(_c))
-		{
-			ran_clock cl = _c.cast<ran_clock>();
-			int _access, _miss, _cachefill, _recycle, _examined, _sum_abit;
-			cl.data(_access, _miss, _cachefill, _recycle, _examined, _sum_abit);
-			return py::make_tuple(_access, _miss, _cachefill, _recycle, _examined, _sum_abit);
-		} else {
-			throw std::invalid_argument("Not passing ran_clock object");
-		}
+	m.def("ran_clock_data", [](void* _c) -> py::tuple {
+		ran_clock* cl = (ran_clock *)_c;
+		int _access, _miss, _cachefill, _recycle, _examined, _sum_abit;
+		cl->data(_access, _miss, _cachefill, _recycle, _examined, _sum_abit);
+		return py::make_tuple(_access, _miss, _cachefill, _recycle, _examined, _sum_abit);		
 	});
 }
