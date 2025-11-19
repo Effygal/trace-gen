@@ -19,7 +19,7 @@ namespace py = pybind11;
   tail may point to empty entry
  */
 
-class LRU {
+class lru {
 
 	int C = 0;
 	std::vector<int> map; // track item position in cache
@@ -40,7 +40,7 @@ class LRU {
 	int n_miss = 0;
 
 public:
-	LRU(int _C)
+	lru(int _C)
 	{
 		C = _C;
 		map.resize(100000, -1);
@@ -48,7 +48,7 @@ public:
 		ref.resize(100000, -1);
 		cache.resize(2 * _C, -1);
 	}
-	~LRU() {}
+	~lru() {}
 
 	// invalid entries in cache, map are flagged with -1
 	// need specific flag if we want to use uint...
@@ -214,42 +214,42 @@ public:
 };
 
 PYBIND11_MODULE(_lru, m) {
-    py::class_<LRU>(m, "LRU")
+    py::class_<lru>(m, "LRU")
 		.def(py::init<int>())
-		.def("multi_access", &LRU::multi_access)
-		.def("contents", &LRU::contents)
-		.def("multi_access_age", &LRU::multi_access_age)
-		.def("hit_rate", &LRU::hit_rate)
-		.def("queue_stats", &LRU::queue_stats)
-		.def("data", &LRU::data);
+		.def("multi_access", &lru::multi_access)
+		.def("contents", &lru::contents)
+		.def("multi_access_age", &lru::multi_access_age)
+		.def("hit_rate", &lru::hit_rate)
+		.def("queue_stats", &lru::queue_stats)
+		.def("data", &lru::data);
 
 	m.def("lru_create", [](int C) {
-		return new LRU(C); 
+		return new lru(C); 
 		});
 	m.def("lru_run", [](void* _l, int n, py::array_t< int32_t >& a) {
-		LRU* l = (LRU *)_l;
+		lru* l = (lru *)_l;
 		l->multi_access(n, a); 
 		});
 	m.def("lru_contents", [](void* _l, py::array_t< int32_t >& out) {
-		LRU* l = (LRU *)_l;
+		lru* l = (lru *)_l;
 		return l->contents(out); 
 		});
 	m.def("lru_run_age", [](void* _l, int n, py::array_t< int32_t >& a, py::array_t< int32_t >& b, py::array_t< int32_t >& c, py::array_t< int32_t >& d, py::array_t< int32_t >& e) {
-		LRU* l = (LRU *)_l;
+		lru* l = (lru *)_l;
 		l->multi_access_age(n, a, b, c, d, e); 
 		});
 	m.def("lru_hitrate", [](void* _l) {
-		LRU* l = (LRU *)_l;
+		lru* l = (lru *)_l;
 		return l->hit_rate(); 
 		});
 	m.def("lru_queue_stats", [](void* _l, py::array_t< int32_t >& n, py::array_t<double>& s, py::array_t<double>& s2) {
-		LRU* l = (LRU *)_l;
+		lru* l = (lru *)_l;
 		l->queue_stats(n, s, s2); 
 		});
 
 	m.def("lru_data", [](py::object _l) -> py::tuple {
-		if (py::isinstance< LRU >(_l)) {
-			LRU l = _l.cast< LRU >();
+		if (py::isinstance< lru >(_l)) {
+			lru l = _l.cast< lru >();
 			int _access, _miss, _cachefill;
 			l.data(_access, _miss, _cachefill);
 			return py::make_tuple(_access, _miss, _cachefill);

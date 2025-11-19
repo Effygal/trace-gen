@@ -189,6 +189,36 @@ public:
 			abit[addr] += 1;
 	}
 
+	void access_no_rp(int32_t addr)
+	{
+		n_access++;
+		if (addr >= map.size())
+		{
+			int n = addr * 3 / 2;
+			map.resize(n, 0); 
+			abit.resize(n, 0);
+		}
+
+		if (!map[addr])
+		{
+			n_miss++;
+			if (!full())
+			{
+				n_cachefill = n_access;
+				push(addr);
+			}
+			else
+			{
+				int evictee = pop_no_rp();
+				if (evictee == -1)
+					return;
+				push(addr);
+			}
+		}
+		else
+			abit[addr] += 1;
+	}
+
 	void access_verbose(int32_t addr, int32_t* evict_addr, int* miss,
 						int* ref_age, int* enter_age)
 	{
@@ -235,11 +265,63 @@ public:
 		}
 	}
 
+	void access_verbose_no_rp(int32_t addr, int32_t* evict_addr, int* miss,
+						int* ref_age, int* enter_age)
+	{
+		n_access++;
+		if (addr >= map.size())
+		{
+			int n = addr * 3 / 2;
+			map.resize(n, 0);
+			abit.resize(n, 0);
+			enter.resize(n, 0);
+			ref.resize(n, 0);
+		}
+
+		if (!map[addr])
+		{
+			n_miss++;
+			if (!full())
+			{
+				n_cachefill = n_access;
+				push(addr);
+				enter[addr] = ref[addr] = n_access;
+			}
+			else
+			{
+				int evictee = pop_no_rp();
+				if (evictee == -1)
+					return;
+				if (miss)
+				{
+					*miss = 1;
+					*evict_addr = evictee;
+					*ref_age = n_access - ref[evictee];
+					*enter_age = n_access - enter[evictee];
+				}
+				push(addr);
+				enter[addr] = ref[addr] = n_access;
+			}
+		}
+		else
+		{
+			abit[addr] = true;
+			ref[addr] = n_access;
+		}
+	}
+
 	void multi_access(int n, py::array_t< int32_t >& addrs)
 	{
 		int32_t* addrs_ptr = addrs.mutable_data();
 		for (int i = 0; i < n; i++)
 			access(addrs_ptr[i]);
+	}
+
+	void multi_access_no_rp(int n, py::array_t< int32_t >& addrs)
+	{
+		int32_t* addrs_ptr = addrs.mutable_data();
+		for (int i = 0; i < n; i++)
+			access_no_rp(addrs_ptr[i]);
 	}
 
 	void queue_stats(py::array_t< int >& n, py::array_t<double>& sum, py::array_t<double>& sum2)
@@ -268,6 +350,22 @@ public:
 			access_verbose(addrs_ptr[i], &evicted_ptr[i], &misses_ptr[i], &age1_ptr[i], &age2_ptr[i]);
 	}
 
+	void multi_access_age_no_rp(int n, py::array_t< int32_t >& addrs, py::array_t< int >& evicted, py::array_t< int >& misses,
+						  py::array_t< int >& age1, py::array_t< int >& age2)
+	{
+		int32_t* addrs_ptr = addrs.mutable_data();
+		int* evicted_ptr = evicted.mutable_data();
+		int* misses_ptr = misses.mutable_data();
+		int* age1_ptr = age1.mutable_data();
+		int* age2_ptr = age2.mutable_data();
+
+		enter.resize(100000);
+		ref.resize(100000);
+		
+		for (int i = 0; i < n; i++)
+			access_verbose_no_rp(addrs_ptr[i], &evicted_ptr[i], &misses_ptr[i], &age1_ptr[i], &age2_ptr[i]);
+	}
+
 	double hit_rate(void)
 	{
 		double miss_rate = (n_miss - C) * 1.0 / (n_access - n_cachefill);
@@ -291,8 +389,10 @@ PYBIND11_MODULE(_ran_clock, m)
 	py::class_<ran_clock>(m, "ran_clock")
 		.def(py::init<int>())
 		.def("multi_access", &ran_clock::multi_access)
+		.def("multi_access_no_rp", &ran_clock::multi_access_no_rp)
 		.def("contents", &ran_clock::contents)
 		.def("multi_access_age", &ran_clock::multi_access_age)
+		.def("multi_access_age_no_rp", &ran_clock::multi_access_age_no_rp)
 		.def("queue_stats", &ran_clock::queue_stats)
 		.def("hit_rate", &ran_clock::hit_rate)
 		.def("data", &ran_clock::data);
@@ -303,6 +403,10 @@ PYBIND11_MODULE(_ran_clock, m)
 		ran_clock* c = (ran_clock *)_c;
 		c->multi_access(n, a);
 	});
+	m.def("ran_clock_run_no_rp", [](void* _c, int n, py::array_t< int32_t >& a) {
+		ran_clock* c = (ran_clock *)_c;
+		c->multi_access_no_rp(n, a);
+	});
 	m.def("ran_clock_contents", [](void* _c, py::array_t< int >& out) {
 		ran_clock* c = (ran_clock *)_c;
 		return c->contents(out);
@@ -310,6 +414,10 @@ PYBIND11_MODULE(_ran_clock, m)
 	m.def("ran_clock_run_age", [](void* _c, int n, py::array_t< int32_t >& a, py::array_t< int >& b, py::array_t< int >& c, py::array_t< int >& d, py::array_t< int >& e) {
 		ran_clock* cl = (ran_clock *)_c;
 		cl->multi_access_age(n, a, b, c, d, e);
+	});
+	m.def("ran_clock_run_age_no_rp", [](void* _c, int n, py::array_t< int32_t >& a, py::array_t< int >& b, py::array_t< int >& c, py::array_t< int >& d, py::array_t< int >& e) {
+		ran_clock* cl = (ran_clock *)_c;
+		cl->multi_access_age_no_rp(n, a, b, c, d, e);
 	});
 	m.def("ran_clock_queue_stats", [](void* _c, py::array_t< int >& n, py::array_t< double >& sum, py::array_t< double >& sum2) {
 		ran_clock* c = (ran_clock *)_c;
