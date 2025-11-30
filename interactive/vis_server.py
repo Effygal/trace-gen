@@ -30,7 +30,23 @@ def gset(g, irm_type, zipf_a=None, pareto_a=None, pareto_xm=None, normal_mean=No
     else:
         raise ValueError(f'Invalid g parameter.')
 
-def mrc_compute(k, indices, eps, p_irm, M=100, n = 10000, irm_type=None, zipf_a=None, pareto_a=None, pareto_xm=None, normal_mean=None, normal_std=None, uniform_a=None, uniform_b=None):
+def mrc_compute(
+    k,
+    indices,
+    eps,
+    p_irm,
+    M=100,
+    n=10000,
+    irm_type=None,
+    zipf_a=None,
+    pareto_a=None,
+    pareto_xm=None,
+    normal_mean=None,
+    normal_std=None,
+    uniform_a=None,
+    uniform_b=None,
+    cache_policy="LRU",
+):
     g = tg.TraceGenerator(M, n)
     if irm_type is not None:
         gset(g, irm_type, zipf_a, pareto_a, pareto_xm, normal_mean, normal_std, uniform_a, uniform_b)
@@ -39,8 +55,24 @@ def mrc_compute(k, indices, eps, p_irm, M=100, n = 10000, irm_type=None, zipf_a=
     M2 = len(set(t))
     K2 = M2 // 20
     c = np.arange(1, M2, K2)
-    hr_lru = [tg.sim_lru(int(_c), t, raw=True) for _c in c]
-    return c, hr_lru
+
+    hr = []
+    for _c in c:
+        C = int(_c)
+        if cache_policy == "LRU":
+            hr.append(tg.sim_lru(C, t, raw=True))
+        elif cache_policy == "FIFO":
+            hr.append(tg.sim_fifo(C, t, raw=True))
+        elif cache_policy == "CLOCK":
+            hr.append(tg.sim_clock(C, t, raw=True))
+        elif cache_policy == "RanCLOCK":
+            hr.append(tg.sim_ran_clock(C, t, raw=True))
+        elif cache_policy == "SIEVE":
+            hr.append(tg.sim_sieve(C, t, raw=True))
+        else:
+            raise ValueError(f"Invalid cache policy: {cache_policy}")
+
+    return c, hr
 
 indices = [1, 2]
 eps = 5e-3 
@@ -91,6 +123,11 @@ n_select = Select(
 )
 
 irm_type_select = Select(title="IRM Type", value="zipf", options=["zipf", "pareto", "normal", "uniform"])
+cache_policy_select = Select(
+    title="Cache Policy",
+    value="LRU",
+    options=["LRU", "FIFO", "CLOCK", "RanCLOCK", "SIEVE"],
+)
 zipf_a_slider = Slider(title="Zipf a", value=1.2, start=1.0, end=10.0, step=0.1)
 pareto_a_slider = Slider(title="Pareto a", value=2.5, start=1.0, end=10.0, step=0.1)
 pareto_xm_slider = Slider(title="Pareto xm", value=0, start=0, end=int(M_select.value), step=1)
@@ -115,7 +152,8 @@ def update_k(attrname: str, old: int, new: int):
     c, hr = mrc_compute(new, eval(indices_input.value), eval(eps_input.value), p_irm_slider.value, int(M_select.value), int(n_select.value),
                         irm_type_select.value, zipf_a_slider.value, pareto_a_slider.value,
                         pareto_xm_slider.value, normal_mean_slider.value, normal_std_slider.value,
-                        uniform_a_slider.value, uniform_b_slider.value)
+                        uniform_a_slider.value, uniform_b_slider.value,
+                        cache_policy=cache_policy_select.value)
     mrc_source.data = dict(c=c, hr=hr)
 
 k_slider.on_change('value', update_k)
@@ -132,7 +170,8 @@ def update_indices(attrname: str, old: str, new: str):
     c, hr = mrc_compute(k_slider.value, new_indices, eval(eps_input.value), p_irm_slider.value, int(M_select.value), int(n_select.value),
                         irm_type_select.value, zipf_a_slider.value, pareto_a_slider.value,
                         pareto_xm_slider.value, normal_mean_slider.value, normal_std_slider.value,
-                        uniform_a_slider.value, uniform_b_slider.value)
+                        uniform_a_slider.value, uniform_b_slider.value,
+                        cache_policy=cache_policy_select.value)
     mrc_source.data = dict(c=c, hr=hr)
     
 
@@ -148,7 +187,8 @@ def update_eps(attrname: str, old: str, new: str):
                         int(M_select.value), int(n_select.value),
                         irm_type=irm_type_select.value, zipf_a=zipf_a_slider.value, pareto_a=pareto_a_slider.value,
                         pareto_xm=pareto_xm_slider.value, normal_mean=normal_mean_slider.value, normal_std=normal_std_slider.value,
-                        uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value)
+                        uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value,
+                        cache_policy=cache_policy_select.value)
     mrc_source.data = dict(c=c, hr=hr)
 
 eps_input.on_change('value', update_eps)
@@ -164,7 +204,8 @@ def update_M(attrname: str, old: str, new: str):
                         M=int(new), n=int(n_select.value),
                         irm_type=irm_type_select.value, zipf_a=zipf_a_slider.value, pareto_a=pareto_a_slider.value,
                         pareto_xm=pareto_xm_slider.value, normal_mean=normal_mean_slider.value, normal_std=normal_std_slider.value,
-                        uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value)
+                        uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value,
+                        cache_policy=cache_policy_select.value)
     mrc_source.data = dict(c=c, hr=hr)
 
 M_select.on_change('value', update_M)
@@ -176,7 +217,8 @@ def update_n(attrname: str, old: str, new: str):
                         M=int(M_select.value), n=int(new),
                         irm_type=irm_type_select.value, zipf_a=zipf_a_slider.value, pareto_a=pareto_a_slider.value,
                         pareto_xm=pareto_xm_slider.value, normal_mean=normal_mean_slider.value, normal_std=normal_std_slider.value,
-                        uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value)
+                        uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value,
+                        cache_policy=cache_policy_select.value)
     mrc_source.data = dict(c=c, hr=hr)
 
 n_select.on_change('value', update_n)
@@ -186,7 +228,8 @@ def update_p_irm(attrname: str, old: float, new: float):
     c, hr = mrc_compute(k_slider.value, eval(indices_input.value), eval(eps_input.value), new, int(M_select.value), int(n_select.value),
                         irm_type_select.value, zipf_a_slider.value, pareto_a_slider.value,
                         pareto_xm_slider.value, normal_mean_slider.value, normal_std_slider.value,
-                        uniform_a_slider.value, uniform_b_slider.value)
+                        uniform_a_slider.value, uniform_b_slider.value,
+                        cache_policy=cache_policy_select.value)
     mrc_source.data = dict(c=c, hr=hr)
 
 p_irm_slider.on_change('value', update_p_irm)
@@ -207,7 +250,8 @@ def update_irm_type(attrname: str, old: str, new: str):
                         M=int(M_select.value), n=int(n_select.value),
                         irm_type=new, zipf_a=zipf_a_slider.value, pareto_a=pareto_a_slider.value,
                         pareto_xm=pareto_xm_slider.value, normal_mean=normal_mean_slider.value, normal_std=normal_std_slider.value,
-                        uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value)
+                        uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value,
+                        cache_policy=cache_policy_select.value)
     mrc_source.data = dict(c=c, hr=hr)
 
 irm_type_select.on_change('value', update_irm_type)
@@ -218,7 +262,8 @@ def update_zipf_a(attrname: str, old: float, new: float):
                         M=int(M_select.value), n=int(n_select.value),
                         irm_type=irm_type_select.value, zipf_a=new, pareto_a=pareto_a_slider.value,
                         pareto_xm=pareto_xm_slider.value, normal_mean=normal_mean_slider.value, normal_std=normal_std_slider.value,
-                        uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value)
+                        uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value,
+                        cache_policy=cache_policy_select.value)
     mrc_source.data = dict(c=c, hr=hr)
 
 zipf_a_slider.on_change('value', update_zipf_a)
@@ -229,7 +274,8 @@ def update_pareto_a(attrname: str, old: float, new: float):
                         M=int(M_select.value), n=int(n_select.value),
                         irm_type=irm_type_select.value, zipf_a=zipf_a_slider.value, pareto_a=new,
                         pareto_xm=pareto_xm_slider.value, normal_mean=normal_mean_slider.value, normal_std=normal_std_slider.value,
-                        uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value)
+                        uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value,
+                        cache_policy=cache_policy_select.value)
     mrc_source.data = dict(c=c, hr=hr)
 
 pareto_a_slider.on_change('value', update_pareto_a)
@@ -240,7 +286,8 @@ def update_pareto_xm(attrname: str, old: float, new: float):
                         M=int(M_select.value), n=int(n_select.value),
                         irm_type=irm_type_select.value, zipf_a=zipf_a_slider.value, pareto_a=pareto_a_slider.value,
                         pareto_xm=new, normal_mean=normal_mean_slider.value, normal_std=normal_std_slider.value,
-                        uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value)
+                        uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value,
+                        cache_policy=cache_policy_select.value)
     mrc_source.data = dict(c=c, hr=hr)
 
 pareto_xm_slider.on_change('value', update_pareto_xm)
@@ -251,7 +298,8 @@ def update_normal_mean(attrname: str, old: float, new: float):
                         M=int(M_select.value), n=int(n_select.value),
                         irm_type=irm_type_select.value, zipf_a=zipf_a_slider.value, pareto_a=pareto_a_slider.value,
                         pareto_xm=pareto_xm_slider.value, normal_mean=new, normal_std=normal_std_slider.value,
-                        uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value)
+                        uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value,
+                        cache_policy=cache_policy_select.value)
     mrc_source.data = dict(c=c, hr=hr)
 
 normal_mean_slider.on_change('value', update_normal_mean)
@@ -262,7 +310,8 @@ def update_normal_std(attrname: str, old: float, new: float):
                         M=int(M_select.value), n=int(n_select.value),
                         irm_type=irm_type_select.value, zipf_a=zipf_a_slider.value, pareto_a=pareto_a_slider.value,
                         pareto_xm=pareto_xm_slider.value, normal_mean=normal_mean_slider.value, normal_std=new,
-                        uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value)
+                        uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value,
+                        cache_policy=cache_policy_select.value)
     mrc_source.data = dict(c=c, hr=hr)
 
 normal_std_slider.on_change('value', update_normal_std)
@@ -273,7 +322,8 @@ def update_uniform_a(attrname: str, old: float, new: float):
                         M=int(M_select.value), n=int(n_select.value),
                         irm_type=irm_type_select.value, zipf_a=zipf_a_slider.value, pareto_a=pareto_a_slider.value,
                         pareto_xm=pareto_xm_slider.value, normal_mean=normal_mean_slider.value, normal_std=normal_std_slider.value,
-                        uniform_a=new, uniform_b=uniform_b_slider.value)
+                        uniform_a=new, uniform_b=uniform_b_slider.value,
+                        cache_policy=cache_policy_select.value)
     mrc_source.data = dict(c=c, hr=hr)
     uniform_b_slider.start = new
 
@@ -285,18 +335,33 @@ def update_uniform_b(attrname: str, old: float, new: float):
                         M=int(M_select.value), n=int(n_select.value),
                         irm_type=irm_type_select.value, zipf_a=zipf_a_slider.value, pareto_a=pareto_a_slider.value,
                         pareto_xm=pareto_xm_slider.value, normal_mean=normal_mean_slider.value, normal_std=normal_std_slider.value,
-                        uniform_a=uniform_a_slider.value, uniform_b=new)
+                        uniform_a=uniform_a_slider.value, uniform_b=new,
+                        cache_policy=cache_policy_select.value)
     mrc_source.data = dict(c=c, hr=hr)
     uniform_a_slider.end = new
 
 uniform_b_slider.on_change('value', update_uniform_b)
+
+
+def update_cache_policy(attrname: str, old: str, new: str):
+    print(f'old {attrname}: {old} -> {new}')
+    c, hr = mrc_compute(k_slider.value, eval(indices_input.value), eval(eps_input.value), p_irm_slider.value,
+                        M=int(M_select.value), n=int(n_select.value),
+                        irm_type=irm_type_select.value, zipf_a=zipf_a_slider.value, pareto_a=pareto_a_slider.value,
+                        pareto_xm=pareto_xm_slider.value, normal_mean=normal_mean_slider.value, normal_std=normal_std_slider.value,
+                        uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value,
+                        cache_policy=new)
+    mrc_source.data = dict(c=c, hr=hr)
+
+
+cache_policy_select.on_change('value', update_cache_policy)
 
 layout = row(
     column(M_select), 
     column(n_select), 
     column(f_title, k_slider, indices_input, eps_input), 
     column(g_title, irm_type_select, zipf_a_slider, pareto_a_slider, pareto_xm_slider, normal_mean_slider, normal_std_slider, uniform_a_slider, uniform_b_slider),
-    column(p_irm_slider), 
+    column(p_irm_slider, cache_policy_select), 
     column(p2)
 )
 

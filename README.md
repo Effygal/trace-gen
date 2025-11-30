@@ -222,7 +222,7 @@ volume01 = tg.squash(volume01[volume01%17 == 0])
 ```
 
 ### 5. Cache simulators and others
-We provide relatively high-performance FIFO, LRU and CLOCK simulators.
+We provide relatively high-performance FIFO, LRU, CLOCK, RanCLOCK and SIEVE simulators.
 usage: 
 ```Python
 cache = tg.fifo(30000) # a FIFO cache of size 30,000 blocks
