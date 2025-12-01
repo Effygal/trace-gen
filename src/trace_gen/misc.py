@@ -179,8 +179,8 @@ def sim_lru(C, trace, raw=True):
     else:
         return l.hitrate()
 
-def sim_ran_clock(C, trace, raw=True, rp=True):
-    rc = ran_clock.ran_clock(C)
+def sim_ran_clock(C, trace, raw=True, rp=True, K=1):
+    rc = ran_clock.ran_clock(C, K=K)
     rc.run(trace, rp=rp)
     if raw:
         a, m, c, r, x, y = rc.data()
