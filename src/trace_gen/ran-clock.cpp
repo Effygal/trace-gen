@@ -14,9 +14,10 @@ namespace py = pybind11;
 class ran_clock
 {
 	int C = 0;
+	int K = 1;
 	std::vector<int> cache;
 	std::vector<int> t_enter;
-	std::vector<int> abit;
+	std::vector<int> counter;
 	std::vector<char> map;
 
 	std::vector<int> enter; // time item entered cache
@@ -30,7 +31,7 @@ class ran_clock
 	int n_miss = 0;
 	int n_recycle = 0;
 	int n_examined = 0;
-	int sum_abit = 0;
+	int sum_counter = 0;
 
 	std::mt19937 rng;
 	int in_ptr = -1;
@@ -53,10 +54,10 @@ private:
 			int slot = (out + offset) % (C + 1);
 			int32_t addr = cache[slot];
 			n_examined++;
-			if (abit[addr])
+			if (counter[addr] > 0)
 			{
-				sum_abit += abit[addr];
-				abit[addr] = 0;
+				sum_counter += counter[addr];
+				counter[addr] -= 1;
 				n_recycle++;
 			}
 			else
@@ -79,46 +80,32 @@ private:
 		std::vector<int> offsets(C);
 		for (int i = 0; i < C; i++)
 			offsets[i] = i;
-		std::shuffle(offsets.begin(), offsets.end(), rng);
 
-		int fallback_slot = -1;
-		int32_t fallback_addr = -1;
-
-		for (int idx = 0; idx < C; idx++)
+		while (true)
 		{
-			int slot = (out + offsets[idx]) % (C + 1);
-			int32_t addr = cache[slot];
-			n_examined++;
-			if (abit[addr])
+			std::shuffle(offsets.begin(), offsets.end(), rng);
+			for (int idx = 0; idx < C; idx++)
 			{
-				sum_abit += abit[addr];
-				abit[addr] = 0;
-				n_recycle++;
-				if (fallback_slot == -1)
+				int slot = (out + offsets[idx]) % (C + 1);
+				int32_t addr = cache[slot];
+				n_examined++;
+				if (counter[addr] > 0)
 				{
-					fallback_slot = slot;
-					fallback_addr = addr;
+					sum_counter += counter[addr];
+					counter[addr] -= 1;
+					n_recycle++;
+					continue;
 				}
-				continue;
+
+				int age = (n_access - t_enter[slot]);
+				sum_top += age;
+				sum_top2 += (age * age);
+				n_top++;
+				map[addr] = false;
+				in_ptr = slot;
+				return addr;
 			}
-
-			int age = (n_access - t_enter[slot]);
-			sum_top += age;
-			sum_top2 += (age * age);
-			n_top++;
-			map[addr] = false;
-			in_ptr = slot;
-			return addr;
 		}
-
-		// All had abit set; evict the first one we touched after clearing bits.
-		int age = (n_access - t_enter[fallback_slot]);
-		sum_top += age;
-		sum_top2 += (age * age);
-		n_top++;
-		map[fallback_addr] = false;
-		in_ptr = fallback_slot;
-		return fallback_addr;
 	}
 
 	void push(int32_t addr)
@@ -131,7 +118,7 @@ private:
 		else
 			in_ptr = -1;
 		map[addr] = true;
-		abit[addr] = false;
+		counter[addr] = 0;
 	}
 
 	void access_common(int32_t addr, bool rp, bool verbose,
@@ -143,7 +130,7 @@ private:
 		{
 			int n = std::max(addr * 3 / 2, addr + 1);
 			map.resize(n, 0);
-			abit.resize(n, 0);
+			counter.resize(n, 0);
 			if (verbose)
 			{
 				enter.resize(n, 0);
@@ -196,7 +183,8 @@ private:
 		}
 		else
 		{
-			abit[addr] += 1;
+			if (counter[addr] < K)
+				counter[addr] += 1;
 			if (verbose)
 				ref[addr] = n_access;
 		}
@@ -204,13 +192,14 @@ private:
 
 public:
 
-	ran_clock(int _C) : rng(std::random_device{}())
+	ran_clock(int _C, int _K = 1) : rng(std::random_device{}())
 	{
 		C = _C;
+		K = std::max(1, _K);
 		cache.resize(C + 1);
 		t_enter.resize(C + 1);
 		map.resize(100000, 0);
-		abit.resize(100000, 0);
+		counter.resize(100000, 0);
 	}
 	~ran_clock() {}
 
@@ -278,30 +267,30 @@ public:
 	}
 
 	void data(int &_access, int &_miss, int &_cachefill, int &_recycle,
-			  int &_examined, int &_sum_abit)
+			  int &_examined, int &_sum_counter)
 	{
 		_access = n_access;
 		_miss = n_miss;
 		_cachefill = n_cachefill;
 		_recycle = n_recycle;
 		_examined = n_examined;
-		_sum_abit = sum_abit;
+		_sum_counter = sum_counter;
 	}
 };
 
 PYBIND11_MODULE(_ran_clock, m)
 {
 	py::class_<ran_clock>(m, "ran_clock")
-		.def(py::init<int>())
+		.def(py::init<int, int>(), py::arg("C"), py::arg("K") = 1)
 		.def("multi_access", &ran_clock::multi_access, py::arg("n"), py::arg("addrs"), py::arg("rp") = true)
 		.def("contents", &ran_clock::contents)
 		.def("multi_access_age", &ran_clock::multi_access_age, py::arg("n"), py::arg("addrs"), py::arg("evicted"), py::arg("misses"), py::arg("age1"), py::arg("age2"), py::arg("rp") = true)
 		.def("queue_stats", &ran_clock::queue_stats)
 		.def("hit_rate", &ran_clock::hit_rate)
 		.def("data", &ran_clock::data);
-	m.def("ran_clock_create", [](int C) {
-		return new ran_clock(C);
-	});
+	m.def("ran_clock_create", [](int C, int K) {
+		return new ran_clock(C, K);
+	}, py::arg("C"), py::arg("K") = 1);
 	m.def("ran_clock_run", [](void* _c, int n, py::array_t< int32_t >& a, bool rp) {
 		ran_clock* c = (ran_clock *)_c;
 		c->multi_access(n, a, rp);
@@ -324,8 +313,8 @@ PYBIND11_MODULE(_ran_clock, m)
 	});
 	m.def("ran_clock_data", [](void* _c) -> py::tuple {
 		ran_clock* cl = (ran_clock *)_c;
-		int _access, _miss, _cachefill, _recycle, _examined, _sum_abit;
-		cl->data(_access, _miss, _cachefill, _recycle, _examined, _sum_abit);
-		return py::make_tuple(_access, _miss, _cachefill, _recycle, _examined, _sum_abit);		
+		int _access, _miss, _cachefill, _recycle, _examined, _sum_counter;
+		cl->data(_access, _miss, _cachefill, _recycle, _examined, _sum_counter);
+		return py::make_tuple(_access, _miss, _cachefill, _recycle, _examined, _sum_counter);		
 	});
 }

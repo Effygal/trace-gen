@@ -4,9 +4,10 @@ import _ran_clock
 
 
 class ran_clock:
-    def __init__(self, C):
-        self.f = _ran_clock.ran_clock_create(C)
+    def __init__(self, C, K=1):
+        self.f = _ran_clock.ran_clock_create(C, K)
         self.C = C
+        self.K = K
 
     def run(self, trace, rp=True):
         if type(trace[0]) != np.int32:
