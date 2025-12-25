@@ -73,41 +73,6 @@ private:
 		}
 	}
 
-	int pop_no_rp(void)
-	{
-		if (C == 0)
-			return -1;
-		std::vector<int> offsets(C);
-		for (int i = 0; i < C; i++)
-			offsets[i] = i;
-
-		while (true)
-		{
-			std::shuffle(offsets.begin(), offsets.end(), rng);
-			for (int idx = 0; idx < C; idx++)
-			{
-				int slot = (out + offsets[idx]) % (C + 1);
-				int32_t addr = cache[slot];
-				n_examined++;
-				if (counter[addr] > 0)
-				{
-					sum_counter += counter[addr];
-					counter[addr] -= 1;
-					n_recycle++;
-					continue;
-				}
-
-				int age = (n_access - t_enter[slot]);
-				sum_top += age;
-				sum_top2 += (age * age);
-				n_top++;
-				map[addr] = false;
-				in_ptr = slot;
-				return addr;
-			}
-		}
-	}
-
 	void push(int32_t addr)
 	{
 		int slot = (in_ptr != -1) ? in_ptr : in;
@@ -121,9 +86,10 @@ private:
 		counter[addr] = 0;
 	}
 
-	void access_common(int32_t addr, bool rp, bool verbose,
+	void access_common(int32_t addr, bool verbose,
 					   int32_t* evict_addr = nullptr, int* miss = nullptr,
-					   int* ref_age = nullptr, int* enter_age = nullptr)
+					   int* ref_age = nullptr, int* enter_age = nullptr,
+					   int* examined = nullptr)
 	{
 		n_access++;
 		if (addr >= map.size())
@@ -154,10 +120,15 @@ private:
 				push(addr);
 				if (verbose)
 					enter[addr] = ref[addr] = n_access;
+				if (examined)
+					*examined = 0;
 			}
 			else
 			{
-				int evictee = rp ? pop() : pop_no_rp();
+				int examined0 = n_examined;
+				int evictee = pop();
+				if (examined)
+					*examined = n_examined - examined0;
 				if (evictee == -1)
 					return;
 				if (verbose)
@@ -187,6 +158,8 @@ private:
 				counter[addr] += 1;
 			if (verbose)
 				ref[addr] = n_access;
+			if (examined)
+				*examined = 0;
 		}
 	}
 
@@ -203,22 +176,22 @@ public:
 	}
 	~ran_clock() {}
 
-	void access(int32_t addr, bool rp)
+	void access(int32_t addr)
 	{
-		access_common(addr, rp, false);
+		access_common(addr, false);
 	}
 
-	void access_verbose(int32_t addr, bool rp, int32_t* evict_addr, int* miss,
-						int* ref_age, int* enter_age)
+	void access_verbose(int32_t addr, int32_t* evict_addr, int* miss,
+						int* ref_age, int* enter_age, int* examined = nullptr)
 	{
-		access_common(addr, rp, true, evict_addr, miss, ref_age, enter_age);
+		access_common(addr, true, evict_addr, miss, ref_age, enter_age, examined);
 	}
 
-	void multi_access(int n, py::array_t< int32_t >& addrs, bool rp = true)
+	void multi_access(int n, py::array_t< int32_t >& addrs)
 	{
 		int32_t* addrs_ptr = addrs.mutable_data();
 		for (int i = 0; i < n; i++)
-			access(addrs_ptr[i], rp);
+			access(addrs_ptr[i]);
 	}
 
 	void queue_stats(py::array_t< int >& n, py::array_t<double>& sum, py::array_t<double>& sum2)
@@ -232,19 +205,23 @@ public:
 	}
 
 	void multi_access_age(int n, py::array_t< int32_t >& addrs, py::array_t< int >& evicted, py::array_t< int >& misses,
-						  py::array_t< int >& age1, py::array_t< int >& age2, bool rp = true)
+						  py::array_t< int >& age1, py::array_t< int >& age2, py::array_t< int >& examined)
 	{
 		int32_t* addrs_ptr = addrs.mutable_data();
 		int* evicted_ptr = evicted.mutable_data();
 		int* misses_ptr = misses.mutable_data();
 		int* age1_ptr = age1.mutable_data();
 		int* age2_ptr = age2.mutable_data();
+		int* examined_ptr = examined.mutable_data();
 
 		enter.resize(100000);
 		ref.resize(100000);
 		
 		for (int i = 0; i < n; i++)
-			access_verbose(addrs_ptr[i], rp, &evicted_ptr[i], &misses_ptr[i], &age1_ptr[i], &age2_ptr[i]);
+		{
+			examined_ptr[i] = 0;
+			access_verbose(addrs_ptr[i], &evicted_ptr[i], &misses_ptr[i], &age1_ptr[i], &age2_ptr[i], &examined_ptr[i]);
+		}
 	}
 
 	double hit_rate(void)
@@ -282,27 +259,27 @@ PYBIND11_MODULE(_ran_clock, m)
 {
 	py::class_<ran_clock>(m, "ran_clock")
 		.def(py::init<int, int>(), py::arg("C"), py::arg("K") = 1)
-		.def("multi_access", &ran_clock::multi_access, py::arg("n"), py::arg("addrs"), py::arg("rp") = true)
+		.def("multi_access", &ran_clock::multi_access, py::arg("n"), py::arg("addrs"))
 		.def("contents", &ran_clock::contents)
-		.def("multi_access_age", &ran_clock::multi_access_age, py::arg("n"), py::arg("addrs"), py::arg("evicted"), py::arg("misses"), py::arg("age1"), py::arg("age2"), py::arg("rp") = true)
+		.def("multi_access_age", &ran_clock::multi_access_age, py::arg("n"), py::arg("addrs"), py::arg("evicted"), py::arg("misses"), py::arg("age1"), py::arg("age2"), py::arg("examined"))
 		.def("queue_stats", &ran_clock::queue_stats)
 		.def("hit_rate", &ran_clock::hit_rate)
 		.def("data", &ran_clock::data);
 	m.def("ran_clock_create", [](int C, int K) {
 		return new ran_clock(C, K);
 	}, py::arg("C"), py::arg("K") = 1);
-	m.def("ran_clock_run", [](void* _c, int n, py::array_t< int32_t >& a, bool rp) {
+	m.def("ran_clock_run", [](void* _c, int n, py::array_t< int32_t >& a) {
 		ran_clock* c = (ran_clock *)_c;
-		c->multi_access(n, a, rp);
-	}, py::arg("handle"), py::arg("n"), py::arg("addrs"), py::arg("rp") = true);
+		c->multi_access(n, a);
+	}, py::arg("handle"), py::arg("n"), py::arg("addrs"));
 	m.def("ran_clock_contents", [](void* _c, py::array_t< int >& out) {
 		ran_clock* c = (ran_clock *)_c;
 		return c->contents(out);
 	});
-	m.def("ran_clock_run_age", [](void* _c, int n, py::array_t< int32_t >& a, py::array_t< int >& b, py::array_t< int >& c, py::array_t< int >& d, py::array_t< int >& e, bool rp) {
+	m.def("ran_clock_run_age", [](void* _c, int n, py::array_t< int32_t >& a, py::array_t< int >& b, py::array_t< int >& c, py::array_t< int >& d, py::array_t< int >& e, py::array_t< int >& f) {
 		ran_clock* cl = (ran_clock *)_c;
-		cl->multi_access_age(n, a, b, c, d, e, rp);
-	}, py::arg("handle"), py::arg("n"), py::arg("addrs"), py::arg("evicted"), py::arg("misses"), py::arg("age1"), py::arg("age2"), py::arg("rp") = true);
+		cl->multi_access_age(n, a, b, c, d, e, f);
+	}, py::arg("handle"), py::arg("n"), py::arg("addrs"), py::arg("evicted"), py::arg("misses"), py::arg("age1"), py::arg("age2"), py::arg("examined"));
 	m.def("ran_clock_queue_stats", [](void* _c, py::array_t< int >& n, py::array_t< double >& sum, py::array_t< double >& sum2) {
 		ran_clock* c = (ran_clock *)_c;
 		c->queue_stats(n, sum, sum2);

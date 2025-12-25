@@ -3,10 +3,12 @@
 import pickle
 import trace_gen.lru_wrapper as lru
 import trace_gen.fifo_wrapper as fifo
+import trace_gen.fifo_m_wrapper as fifo_m
 import trace_gen.clock_wrapper as clock
 import trace_gen.sieve_wrapper as sieve
 # import trace_gen.arc_wrapper as arc
 import trace_gen.ran_clock_wrapper as ran_clock
+import trace_gen.rand_m_wrapper as rand_m
 import heapq
 import numpy as np
 import random
@@ -179,9 +181,9 @@ def sim_lru(C, trace, raw=True):
     else:
         return l.hitrate()
 
-def sim_ran_clock(C, trace, raw=True, rp=True, K=1):
+def sim_ran_clock(C, trace, raw=True, K=1):
     rc = ran_clock.ran_clock(C, K=K)
-    rc.run(trace, rp=rp)
+    rc.run(trace)
     if raw:
         a, m, c, r, x, y = rc.data()
         return 1 - m/a
@@ -196,6 +198,24 @@ def sim_sieve(C, trace, raw=True):
         return 1 - m/a
     else:
         return s.hitrate()
+
+
+def sim_fifo_m(m, trace, raw=True, strict=False, lru_policy=False):
+    f = fifo_m.fifo_m(m, strict=strict, lru=lru_policy)
+    f.run(trace)
+    if raw:
+        a, miss, *_ = f.data()
+        return 1 - miss / a
+    return f.hitrate()
+
+
+def sim_rand_m(m, trace, raw=True):
+    r = rand_m.rand_m(m)
+    r.run(trace)
+    if raw:
+        a, miss, *_ = r.data()
+        return 1 - miss / a
+    return r.hitrate()
     
 # def sim_arc(C, trace, raw=True):
 #     a = arc.arc(C)

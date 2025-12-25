@@ -31,16 +31,25 @@ executable(
 )
 
 py_mod = import('python')
-py = py_mod.find_installation('python3', pure: true, required: true, modules: ['numpy']) # python_installation object
+py = py_mod.find_installation('python3', pure: true, required: false, modules: ['numpy']) # python_installation object
+if not py.found()
+    py = py_mod.find_installation('/usr/bin/python3', pure: true, required: true, modules: ['numpy'])
+endif
 message('Python path =' + py.full_path() + ', version: ' + py.version())
 
-incdir_pybind11 = run_command(
+incdir_pybind11 = '/usr/include'
+pybind11_inc_res = run_command(
     py,
     [
         '-c', 'import os; import pybind11; print(os.path.relpath(pybind11.get_include()))',
     ],
-    check: true,
-).stdout().strip()
+    check: false,
+)
+if pybind11_inc_res.returncode() == 0
+    incdir_pybind11 = pybind11_inc_res.stdout().strip()
+else
+    message('pybind11 python module not found; using headers from /usr/include')
+endif
 
 _cpp_args = []
 _cpp_args += compiler.get_supported_arguments(
@@ -73,9 +82,11 @@ python_sources = [
     'src/trace_gen/TraceReconstructor.py',
     'src/trace_gen/TraceGenerator.py',
     'src/trace_gen/fifo_wrapper.py',
+    'src/trace_gen/fifo_m_wrapper.py',
     'src/trace_gen/clock_wrapper.py',
     'src/trace_gen/ran_clock_wrapper.py',
     'src/trace_gen/sieve_wrapper.py',
+    'src/trace_gen/rand_m_wrapper.py',
     #   'src/trace_gen/arc_wrapper.py'
 ]
 
@@ -112,6 +123,14 @@ module = py.extension_module(
 )
 
 module = py.extension_module(
+    '_fifo_m',
+    sources: ['src/trace_gen/fifo_m.cpp'],
+    include_directories: includes,
+    install: true,
+    cpp_args: _cpp_args,
+)
+
+module = py.extension_module(
     '_clock',
     sources: ['src/trace_gen/clock.cpp'],
     include_directories: includes,
@@ -130,6 +149,14 @@ module = py.extension_module(
 module = py.extension_module(
     '_sieve',
     sources: ['src/trace_gen/sieve.cpp'],
+    include_directories: includes,
+    install: true,
+    cpp_args: _cpp_args,
+)
+
+module = py.extension_module(
+    '_rand_m',
+    sources: ['src/trace_gen/rand_m.cpp'],
     include_directories: includes,
     install: true,
     cpp_args: _cpp_args,
