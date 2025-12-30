@@ -3,9 +3,10 @@ import numpy as np
 import _clock
 
 class clock:
-    def __init__(self, C):
-        self.f = _clock.clock1_create(C)
+    def __init__(self, C, K=1):
+        self.f = _clock.clock1_create(C, K)
         self.C = C
+        self.K = K
 
     def run(self, trace):  # clock* new f; f->multi-access(n, a)
         if type(trace[0]) != np.int32:

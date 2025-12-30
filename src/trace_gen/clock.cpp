@@ -3,6 +3,7 @@
 #include <set>
 #include <unordered_set>
 #include <stdint.h>
+#include <algorithm>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
@@ -12,9 +13,10 @@ namespace py = pybind11;
 class clock1
 {
 	int C = 0;
+	int K = 1;
 	std::vector<int> cache;
 	std::vector<int> t_enter;
-	std::vector<int> abit;
+	std::vector<int> counter;
 	std::vector<char> map;
 	std::vector<int> enter; // time item entered cache
 	std::vector<int> ref;	// time item last referenced
@@ -28,16 +30,17 @@ class clock1
 	int n_miss = 0;
 	int n_recycle = 0;
 	int n_examined = 0;
-	int sum_abit = 0;
+	int sum_counter = 0;
 
 public:
-	clock1(int _C)
+	clock1(int _C, int _K = 1)
 	{
 		C = _C;
+		K = std::max(1, _K);
 		cache.resize(C + 1);
 		t_enter.resize(C + 1);
 		map.resize(100000, 0);
-		abit.resize(100000, 0);
+		counter.resize(100000, 0);
 	}
 	~clock1() {}
 
@@ -64,7 +67,6 @@ public:
 		t_enter[in] = n_access;
 		in = (in + 1) % (C + 1);
 		map[addr] = true;
-		abit[addr] = false;
 	}
 
 	// must have enough space for C entries
@@ -86,9 +88,9 @@ public:
 		n_access++;
 		if (addr >= map.size())
 		{
-			int n = addr * 3 / 2;
-			map.resize(n, 0); // like, resize to n, and append 0 to the vector.
-			abit.resize(n, 0);
+			int n = std::max(addr * 3 / 2, addr + 1);
+			map.resize(n, 0);
+			counter.resize(n, 0);
 		}
 
 		if (!map[addr])
@@ -102,10 +104,10 @@ public:
 				{
 					int evictee = pop();
 					n_examined++;
-					if (abit[evictee])
+					if (counter[evictee] > 0)
 					{
-						sum_abit += abit[evictee];
-						abit[evictee] = 0;
+						sum_counter += counter[evictee];
+						counter[evictee] -= 1;
 						push(evictee);
 						n_recycle++;
 					}
@@ -113,10 +115,14 @@ public:
 						break;
 				}
 			}
+			counter[addr] = 0;
 			push(addr);
 		}
 		else
-			abit[addr] += 1;
+		{
+			if (counter[addr] < K)
+				counter[addr] += 1;
+		}
 	}
 
 	void access_verbose(int32_t addr, int32_t* evict_addr, int* miss,
@@ -125,9 +131,9 @@ public:
 		n_access++;
 		if (addr >= map.size())
 		{
-			int n = addr * 3 / 2;
+			int n = std::max(addr * 3 / 2, addr + 1);
 			map.resize(n, 0);
-			abit.resize(n, 0);
+			counter.resize(n, 0);
 			enter.resize(n, 0);
 			ref.resize(n, 0);
 		}
@@ -142,9 +148,11 @@ public:
 				while (true)
 				{
 					int evictee = pop();
-					if (abit[evictee])
+					n_examined++;
+					if (counter[evictee] > 0)
 					{
-						abit[evictee] = false;
+						sum_counter += counter[evictee];
+						counter[evictee] -= 1;
 						push(evictee);
 						n_recycle++;
 					}
@@ -161,12 +169,14 @@ public:
 					}
 				}
 			}
+			counter[addr] = 0;
 			push(addr);
 			enter[addr] = ref[addr] = n_access;
 		}
 		else
 		{
-			abit[addr] = true;
+			if (counter[addr] < K)
+				counter[addr] += 1;
 			ref[addr] = n_access;
 		}
 	}
@@ -210,30 +220,30 @@ public:
 	}
 
 	void data(int &_access, int &_miss, int &_cachefill, int &_recycle,
-			  int &_examined, int &_sum_abit)
+			  int &_examined, int &_sum_counter)
 	{
 		_access = n_access;
 		_miss = n_miss;
 		_cachefill = n_cachefill;
 		_recycle = n_recycle;
 		_examined = n_examined;
-		_sum_abit = sum_abit;
+		_sum_counter = sum_counter;
 	}
 };
 
 PYBIND11_MODULE(_clock, m)
 {
 	py::class_<clock1>(m, "clock1")
-		.def(py::init<int>())
+		.def(py::init<int, int>(), py::arg("C"), py::arg("K") = 1)
 		.def("multi_access", &clock1::multi_access)
 		.def("contents", &clock1::contents)
 		.def("multi_access_age", &clock1::multi_access_age)
 		.def("queue_stats", &clock1::queue_stats)
 		.def("hit_rate", &clock1::hit_rate)
 		.def("data", &clock1::data);
-	m.def("clock1_create", [](int C) {
-		return new clock1(C);
-	});
+	m.def("clock1_create", [](int C, int K) {
+		return new clock1(C, K);
+	}, py::arg("C"), py::arg("K") = 1);
 	m.def("clock1_run", [](void* _c, int n, py::array_t< int32_t >& a) {
 		clock1* c = (clock1 *)_c;
 		c->multi_access(n, a);
@@ -258,9 +268,9 @@ PYBIND11_MODULE(_clock, m)
 		if (py::isinstance<clock1>(_c))
 		{
 			clock1 cl = _c.cast<clock1>();
-			int _access, _miss, _cachefill, _recycle, _examined, _sum_abit;
-			cl.data(_access, _miss, _cachefill, _recycle, _examined, _sum_abit);
-			return py::make_tuple(_access, _miss, _cachefill, _recycle, _examined, _sum_abit);
+			int _access, _miss, _cachefill, _recycle, _examined, _sum_counter;
+			cl.data(_access, _miss, _cachefill, _recycle, _examined, _sum_counter);
+			return py::make_tuple(_access, _miss, _cachefill, _recycle, _examined, _sum_counter);
 		} else {
 			throw std::invalid_argument("Not passing clock1 object");
 		}

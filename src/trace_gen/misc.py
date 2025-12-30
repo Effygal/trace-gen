@@ -2,6 +2,7 @@
 
 import pickle
 import trace_gen.lru_wrapper as lru
+import trace_gen.lfu_wrapper as lfu
 import trace_gen.fifo_wrapper as fifo
 import trace_gen.fifo_m_wrapper as fifo_m
 import trace_gen.clock_wrapper as clock
@@ -163,11 +164,11 @@ def sim_fifo(C, trace, raw=True):
     else:
         return f.hitrate()
 
-def sim_clock(C, trace, raw=True):
-    c = clock.clock(C)
+def sim_clock(C, trace, raw=True, K=1):
+    c = clock.clock(C, K=K)
     c.run(trace)
     if raw:
-        a, m, cf, recycle, examined, sumabit = c.data()
+        a, m, cf, recycle, examined, sumcnt = c.data()
         return 1 - m/a
     else:
         return c.hitrate()
@@ -177,6 +178,15 @@ def sim_lru(C, trace, raw=True):
     l.run(trace)
     if raw:
         a, m, c = l.data()
+        return 1 - m/a
+    else:
+        return l.hitrate()
+
+def sim_lfu(C, trace, raw=True):
+    l = lfu.lfu(C)
+    l.run(trace)
+    if raw:
+        a, m, _ = l.data()
         return 1 - m/a
     else:
         return l.hitrate()

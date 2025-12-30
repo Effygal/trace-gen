@@ -4,7 +4,7 @@ requires = ["meson-python", "wheel", "ninja", "numpy<2.0", "pybind11>=2.8.0"]
 
 [project]
 name = "trace_gen"
-version = "0.2.0"
+version = "0.2.1"
 authors = [
 	{  name = "Effy Wang", email = "effywang57@gmail.com" }
 ]

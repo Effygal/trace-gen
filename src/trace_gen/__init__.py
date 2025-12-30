@@ -4,6 +4,7 @@ from .unroll import unroll
 from .iad_wrapper import *
 from .misc import *
 from .lru_wrapper import *
+from .lfu_wrapper import *
 from .TraceReconstructor import *
 from .TraceGenerator import *
 from .fifo_wrapper import *
