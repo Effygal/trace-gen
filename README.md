@@ -20,7 +20,7 @@ sudo apt-get install build-essential libboost-all-dev libfmt-dev pkg-config
 ### Install
 If you are on Linux x86, you can install the package directly from the wheel (see GH releases): 
 ```bash
-python -m pip install trace_gen-0.2.0-cp310-cp310-linux_x86_64.whl
+python -m pip install trace_gen-0.2.1-cp310-cp310-linux_x86_64.whl
 ```
 If you prefer building from the source:
 ```bash
@@ -222,24 +222,32 @@ volume01 = tg.squash(volume01[volume01%17 == 0])
 ```
 
 ### 5. Cache simulators and others
-We provide relatively high-performance FIFO, LRU, CLOCK, RanCLOCK and SIEVE simulators.
-usage: 
-```Python
-cache = tg.fifo(30000) # a FIFO cache of size 30,000 blocks
-cache.run(volume01)  
+We ship several cache simulators; all expose `.run(trace)` and `.hitrate()` plus `data()` for raw counters.
+
+- **LRU / FIFO / LFU**: Simple policies via `tg.lru`, `tg.fifo`, `tg.lfu`.
+- **CLOCK (K)**: Second-chance FIFO with configurable counter cap `K` (`K=1` reduces to the classic CLOCK [1]).
+- **RanCLOCK**: CLOCK with randomized hand; same `K` semantics.
+- **SIEVE**:[2]
+- **FIFO(m) and RAND(m)**: Multi-queue/list-based policies [3]; lists are configured as `[m1, m2, …]` using parameters `m1` (first-list size as a fraction of total cache `C`) and `h` (number of lists).
+
+Example:
+```python
+cache = tg.fifo(30000)
+cache.run(volume01)
 cache.hitrate()
 ```
+
 Note that memory usage is dependent on cache size + largest address, so if you have a sparse address range you should use the `misc.squash` function to compact it.
 
-You can run multiple traces on the same fifo/lru/clock object. The command `f.data()` returns the tuple A,M,C:
+You can run multiple traces on the same object;`f.data()` returns the tuple A,M,C:
 
 - A = total number of accesses (so far)
 - M = number of misses
 - C = access number of most recent access to a non-full cache. (in other words, number of accesses to fill cache)
 
-For clock there is a 4th return value, which is the number of items which were recycled from the end of the queue to the beginning due to the accessed bit being set.
+For CLOCK/RanCLOCK there is a 4th return value, which is the number of items which were recycled from the end of the queue to the beginning due to the accessed counter being set.
 
-There are some helper functions in `misc.py` - `sim_lru(C,trace,raw=False)`, and equivalently for FIFO and CLOCK. If `raw=False`, it returns adjusted hitrate (i.e. ignoring accesses while the cache was filling, this would cause non-monotone in LRU MRCs), while if `raw=True` it just calculates total hits vs accesses.
+There are some helper functions in `misc.py` - `sim_lru(C,trace,raw=False)`, and equivalently for FIFO and CLOCK. If `raw=False`, it returns adjusted hitrate (i.e. ignoring accesses while the cache was filling), while if `raw=True` it just calculates total hits vs accesses.
 
 #### Simulate cache hit rate:
 `tg` provides wrapper simulators that can be used as follows: 
@@ -249,6 +257,7 @@ hr_volume01_lru = [tg.sim_lru(_c, volume01) for _c in c]
 hr_volume01_fifo = [tg.sim_fifo(_c, volume01) for _c in c]
 hr_volume01_clock = [tg.sim_clock(_c, volume01) for _c in c]
 ```
+
 #### iad2.py
 Calculate the inter-reference distances of a given trace
 usage:
@@ -258,6 +267,8 @@ np.plot(np.sort(iad), np.arange(len(iad))/len(iad))
 ```
 
 
+[1]: F. J. Corbató et al., “The Multics System: An Examination of its Structure,” 1969 — introduces second-chance/CLOCK paging.
 
+[2]: Y. Zhang, J. Yang, Y. Yue, Y. Vigfusson, K. V. Rashmi, “SIEVE is simpler than LRU: an efficient Turn-Key eviction algorithm for web caches,” USENIX NSDI 2024.
 
-
+[3]: N. Gast and B. Van Houdt, “Transient and steady-state regime of a family of list-based cache replacement algorithms,” ACM SIGMETRICS 2015.
