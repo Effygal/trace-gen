@@ -10,6 +10,38 @@ M_MIN = 100
 N_MIN = 10000
 P_IRM_MIN = 0.0
 MAX_K = 100
+M1_FRAC_DEFAULT = 0.5
+H_LISTS_DEFAULT = 2
+
+
+def build_m_lists(C: int, m1_fraction: float, h_lists: int):
+    """Construct m-list sizes for RAND(m)/FIFO(m) given a target cache size."""
+    if C <= 0:
+        return [0]
+
+    h = max(1, int(h_lists))
+    m1 = max(1, min(C, int(round(C * m1_fraction))))
+
+    remaining = C - m1
+    # cannot have more lists than remaining + 1 (each list needs at least 1 slot)
+    h = min(h, remaining + 1) if remaining >= 0 else 1
+    if h <= 1:
+        return [C]
+
+    other_lists = h - 1
+    base, rem = divmod(remaining, other_lists)
+    base = max(1, base)
+
+    m = [m1]
+    for i in range(other_lists):
+        size = base + (1 if i < rem else 0)
+        m.append(size)
+
+    # Fix any rounding mismatch to hit total C exactly
+    diff = C - sum(m)
+    if diff != 0:
+        m[-1] += diff
+    return m
 
 def fgen(k, indices, eps=1e-6):
     l = np.full(k, eps)  
@@ -46,6 +78,9 @@ def mrc_compute(
     uniform_a=None,
     uniform_b=None,
     cache_policy="LRU",
+    clock_k=1,
+    m1_fraction=0.5,
+    h_lists=2,
 ):
     g = tg.TraceGenerator(M, n)
     if irm_type is not None:
@@ -64,11 +99,19 @@ def mrc_compute(
         elif cache_policy == "FIFO":
             hr.append(tg.sim_fifo(C, t, raw=True))
         elif cache_policy == "CLOCK":
-            hr.append(tg.sim_clock(C, t, raw=True))
+            hr.append(tg.sim_clock(C, t, raw=True, K=clock_k))
         elif cache_policy == "RanCLOCK":
-            hr.append(tg.sim_ran_clock(C, t, raw=True))
+            hr.append(tg.sim_ran_clock(C, t, raw=True, K=clock_k))
         elif cache_policy == "SIEVE":
             hr.append(tg.sim_sieve(C, t, raw=True))
+        elif cache_policy == "LFU":
+            hr.append(tg.sim_lfu(C, t, raw=True))
+        elif cache_policy == "RAND(m)":
+            m_lists = build_m_lists(C, m1_fraction, h_lists)
+            hr.append(tg.sim_rand_m(m_lists, t, raw=True))
+        elif cache_policy == "FIFO(m)":
+            m_lists = build_m_lists(C, m1_fraction, h_lists)
+            hr.append(tg.sim_fifo_m(m_lists, t, raw=True))
         else:
             raise ValueError(f"Invalid cache policy: {cache_policy}")
 
@@ -79,7 +122,7 @@ eps = 5e-3
 MIN_K = max(indices) + 1
 x, y = fgen(MIN_K, indices, eps)
 p_irm = P_IRM_MIN
-c, hr = mrc_compute(MIN_K, indices, eps, p_irm, M_MIN, N_MIN)
+c, hr = mrc_compute(MIN_K, indices, eps, p_irm, M_MIN, N_MIN, m1_fraction=M1_FRAC_DEFAULT, h_lists=H_LISTS_DEFAULT)
 
 fgen_source = ColumnDataSource(data=dict(x=x, y=y))
 mrc_source = ColumnDataSource(data=dict(c=c, hr=hr))
@@ -126,9 +169,33 @@ irm_type_select = Select(title="IRM Type", value="zipf", options=["zipf", "paret
 cache_policy_select = Select(
     title="Cache Policy",
     value="LRU",
-    options=["LRU", "FIFO", "CLOCK", "RanCLOCK", "SIEVE"],
+    options=["LRU", "FIFO", "CLOCK", "RanCLOCK", "SIEVE", "LFU", "RAND(m)", "FIFO(m)"],
 )
-zipf_a_slider = Slider(title="Zipf a", value=1.2, start=1.0, end=10.0, step=0.1)
+clock_k_slider = Slider(
+    title="Clock/RanClock K",
+    value=1,
+    start=1,
+    end=MAX_K,
+    step=1,
+)
+clock_k_slider.visible = cache_policy_select.value in ["CLOCK", "RanCLOCK"]
+m1_fraction_slider = Slider(
+    title="m1 fraction",
+    value=M1_FRAC_DEFAULT,
+    start=0.05,
+    end=1.0,
+    step=0.05,
+)
+h_lists_slider = Slider(
+    title="h (lists)",
+    value=H_LISTS_DEFAULT,
+    start=1,
+    end=10,
+    step=1,
+)
+m1_fraction_slider.visible = cache_policy_select.value in ["RAND(m)", "FIFO(m)"]
+h_lists_slider.visible = m1_fraction_slider.visible
+zipf_a_slider = Slider(title="Zipf a", value=1.2, start=0.0, end=1.5, step=0.05)
 pareto_a_slider = Slider(title="Pareto a", value=2.5, start=1.0, end=10.0, step=0.1)
 pareto_xm_slider = Slider(title="Pareto xm", value=0, start=0, end=int(M_select.value), step=1)
 normal_mean_slider = Slider(title="Normal Mean", value=int(M_select.value)//2, start=0, end=int(M_select.value), step=1)
@@ -153,7 +220,8 @@ def update_k(attrname: str, old: int, new: int):
                         irm_type_select.value, zipf_a_slider.value, pareto_a_slider.value,
                         pareto_xm_slider.value, normal_mean_slider.value, normal_std_slider.value,
                         uniform_a_slider.value, uniform_b_slider.value,
-                        cache_policy=cache_policy_select.value)
+                        cache_policy=cache_policy_select.value, clock_k=clock_k_slider.value,
+                        m1_fraction=m1_fraction_slider.value, h_lists=h_lists_slider.value)
     mrc_source.data = dict(c=c, hr=hr)
 
 k_slider.on_change('value', update_k)
@@ -171,7 +239,8 @@ def update_indices(attrname: str, old: str, new: str):
                         irm_type_select.value, zipf_a_slider.value, pareto_a_slider.value,
                         pareto_xm_slider.value, normal_mean_slider.value, normal_std_slider.value,
                         uniform_a_slider.value, uniform_b_slider.value,
-                        cache_policy=cache_policy_select.value)
+                        cache_policy=cache_policy_select.value, clock_k=clock_k_slider.value,
+                        m1_fraction=m1_fraction_slider.value, h_lists=h_lists_slider.value)
     mrc_source.data = dict(c=c, hr=hr)
     
 
@@ -188,7 +257,8 @@ def update_eps(attrname: str, old: str, new: str):
                         irm_type=irm_type_select.value, zipf_a=zipf_a_slider.value, pareto_a=pareto_a_slider.value,
                         pareto_xm=pareto_xm_slider.value, normal_mean=normal_mean_slider.value, normal_std=normal_std_slider.value,
                         uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value,
-                        cache_policy=cache_policy_select.value)
+                        cache_policy=cache_policy_select.value, clock_k=clock_k_slider.value,
+                        m1_fraction=m1_fraction_slider.value, h_lists=h_lists_slider.value)
     mrc_source.data = dict(c=c, hr=hr)
 
 eps_input.on_change('value', update_eps)
@@ -205,7 +275,8 @@ def update_M(attrname: str, old: str, new: str):
                         irm_type=irm_type_select.value, zipf_a=zipf_a_slider.value, pareto_a=pareto_a_slider.value,
                         pareto_xm=pareto_xm_slider.value, normal_mean=normal_mean_slider.value, normal_std=normal_std_slider.value,
                         uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value,
-                        cache_policy=cache_policy_select.value)
+                        cache_policy=cache_policy_select.value, clock_k=clock_k_slider.value,
+                        m1_fraction=m1_fraction_slider.value, h_lists=h_lists_slider.value)
     mrc_source.data = dict(c=c, hr=hr)
 
 M_select.on_change('value', update_M)
@@ -218,7 +289,8 @@ def update_n(attrname: str, old: str, new: str):
                         irm_type=irm_type_select.value, zipf_a=zipf_a_slider.value, pareto_a=pareto_a_slider.value,
                         pareto_xm=pareto_xm_slider.value, normal_mean=normal_mean_slider.value, normal_std=normal_std_slider.value,
                         uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value,
-                        cache_policy=cache_policy_select.value)
+                        cache_policy=cache_policy_select.value, clock_k=clock_k_slider.value,
+                        m1_fraction=m1_fraction_slider.value, h_lists=h_lists_slider.value)
     mrc_source.data = dict(c=c, hr=hr)
 
 n_select.on_change('value', update_n)
@@ -229,7 +301,8 @@ def update_p_irm(attrname: str, old: float, new: float):
                         irm_type_select.value, zipf_a_slider.value, pareto_a_slider.value,
                         pareto_xm_slider.value, normal_mean_slider.value, normal_std_slider.value,
                         uniform_a_slider.value, uniform_b_slider.value,
-                        cache_policy=cache_policy_select.value)
+                        cache_policy=cache_policy_select.value, clock_k=clock_k_slider.value,
+                        m1_fraction=m1_fraction_slider.value, h_lists=h_lists_slider.value)
     mrc_source.data = dict(c=c, hr=hr)
 
 p_irm_slider.on_change('value', update_p_irm)
@@ -251,7 +324,8 @@ def update_irm_type(attrname: str, old: str, new: str):
                         irm_type=new, zipf_a=zipf_a_slider.value, pareto_a=pareto_a_slider.value,
                         pareto_xm=pareto_xm_slider.value, normal_mean=normal_mean_slider.value, normal_std=normal_std_slider.value,
                         uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value,
-                        cache_policy=cache_policy_select.value)
+                        cache_policy=cache_policy_select.value, clock_k=clock_k_slider.value,
+                        m1_fraction=m1_fraction_slider.value, h_lists=h_lists_slider.value)
     mrc_source.data = dict(c=c, hr=hr)
 
 irm_type_select.on_change('value', update_irm_type)
@@ -263,7 +337,8 @@ def update_zipf_a(attrname: str, old: float, new: float):
                         irm_type=irm_type_select.value, zipf_a=new, pareto_a=pareto_a_slider.value,
                         pareto_xm=pareto_xm_slider.value, normal_mean=normal_mean_slider.value, normal_std=normal_std_slider.value,
                         uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value,
-                        cache_policy=cache_policy_select.value)
+                        cache_policy=cache_policy_select.value, clock_k=clock_k_slider.value,
+                        m1_fraction=m1_fraction_slider.value, h_lists=h_lists_slider.value)
     mrc_source.data = dict(c=c, hr=hr)
 
 zipf_a_slider.on_change('value', update_zipf_a)
@@ -275,7 +350,8 @@ def update_pareto_a(attrname: str, old: float, new: float):
                         irm_type=irm_type_select.value, zipf_a=zipf_a_slider.value, pareto_a=new,
                         pareto_xm=pareto_xm_slider.value, normal_mean=normal_mean_slider.value, normal_std=normal_std_slider.value,
                         uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value,
-                        cache_policy=cache_policy_select.value)
+                        cache_policy=cache_policy_select.value, clock_k=clock_k_slider.value,
+                        m1_fraction=m1_fraction_slider.value, h_lists=h_lists_slider.value)
     mrc_source.data = dict(c=c, hr=hr)
 
 pareto_a_slider.on_change('value', update_pareto_a)
@@ -287,7 +363,8 @@ def update_pareto_xm(attrname: str, old: float, new: float):
                         irm_type=irm_type_select.value, zipf_a=zipf_a_slider.value, pareto_a=pareto_a_slider.value,
                         pareto_xm=new, normal_mean=normal_mean_slider.value, normal_std=normal_std_slider.value,
                         uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value,
-                        cache_policy=cache_policy_select.value)
+                        cache_policy=cache_policy_select.value, clock_k=clock_k_slider.value,
+                        m1_fraction=m1_fraction_slider.value, h_lists=h_lists_slider.value)
     mrc_source.data = dict(c=c, hr=hr)
 
 pareto_xm_slider.on_change('value', update_pareto_xm)
@@ -299,7 +376,8 @@ def update_normal_mean(attrname: str, old: float, new: float):
                         irm_type=irm_type_select.value, zipf_a=zipf_a_slider.value, pareto_a=pareto_a_slider.value,
                         pareto_xm=pareto_xm_slider.value, normal_mean=new, normal_std=normal_std_slider.value,
                         uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value,
-                        cache_policy=cache_policy_select.value)
+                        cache_policy=cache_policy_select.value, clock_k=clock_k_slider.value,
+                        m1_fraction=m1_fraction_slider.value, h_lists=h_lists_slider.value)
     mrc_source.data = dict(c=c, hr=hr)
 
 normal_mean_slider.on_change('value', update_normal_mean)
@@ -311,7 +389,8 @@ def update_normal_std(attrname: str, old: float, new: float):
                         irm_type=irm_type_select.value, zipf_a=zipf_a_slider.value, pareto_a=pareto_a_slider.value,
                         pareto_xm=pareto_xm_slider.value, normal_mean=normal_mean_slider.value, normal_std=new,
                         uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value,
-                        cache_policy=cache_policy_select.value)
+                        cache_policy=cache_policy_select.value, clock_k=clock_k_slider.value,
+                        m1_fraction=m1_fraction_slider.value, h_lists=h_lists_slider.value)
     mrc_source.data = dict(c=c, hr=hr)
 
 normal_std_slider.on_change('value', update_normal_std)
@@ -323,7 +402,8 @@ def update_uniform_a(attrname: str, old: float, new: float):
                         irm_type=irm_type_select.value, zipf_a=zipf_a_slider.value, pareto_a=pareto_a_slider.value,
                         pareto_xm=pareto_xm_slider.value, normal_mean=normal_mean_slider.value, normal_std=normal_std_slider.value,
                         uniform_a=new, uniform_b=uniform_b_slider.value,
-                        cache_policy=cache_policy_select.value)
+                        cache_policy=cache_policy_select.value, clock_k=clock_k_slider.value,
+                        m1_fraction=m1_fraction_slider.value, h_lists=h_lists_slider.value)
     mrc_source.data = dict(c=c, hr=hr)
     uniform_b_slider.start = new
 
@@ -336,21 +416,66 @@ def update_uniform_b(attrname: str, old: float, new: float):
                         irm_type=irm_type_select.value, zipf_a=zipf_a_slider.value, pareto_a=pareto_a_slider.value,
                         pareto_xm=pareto_xm_slider.value, normal_mean=normal_mean_slider.value, normal_std=normal_std_slider.value,
                         uniform_a=uniform_a_slider.value, uniform_b=new,
-                        cache_policy=cache_policy_select.value)
+                        cache_policy=cache_policy_select.value, clock_k=clock_k_slider.value,
+                        m1_fraction=m1_fraction_slider.value, h_lists=h_lists_slider.value)
     mrc_source.data = dict(c=c, hr=hr)
     uniform_a_slider.end = new
 
 uniform_b_slider.on_change('value', update_uniform_b)
 
-
-def update_cache_policy(attrname: str, old: str, new: str):
+def update_clock_k(attrname: str, old: int, new: int):
     print(f'old {attrname}: {old} -> {new}')
     c, hr = mrc_compute(k_slider.value, eval(indices_input.value), eval(eps_input.value), p_irm_slider.value,
                         M=int(M_select.value), n=int(n_select.value),
                         irm_type=irm_type_select.value, zipf_a=zipf_a_slider.value, pareto_a=pareto_a_slider.value,
                         pareto_xm=pareto_xm_slider.value, normal_mean=normal_mean_slider.value, normal_std=normal_std_slider.value,
                         uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value,
-                        cache_policy=new)
+                        cache_policy=cache_policy_select.value, clock_k=new,
+                        m1_fraction=m1_fraction_slider.value, h_lists=h_lists_slider.value)
+    mrc_source.data = dict(c=c, hr=hr)
+
+clock_k_slider.on_change('value', update_clock_k)
+
+def update_m1_fraction(attrname: str, old: float, new: float):
+    print(f'old {attrname}: {old} -> {new}')
+    c, hr = mrc_compute(k_slider.value, eval(indices_input.value), eval(eps_input.value), p_irm_slider.value,
+                        M=int(M_select.value), n=int(n_select.value),
+                        irm_type=irm_type_select.value, zipf_a=zipf_a_slider.value, pareto_a=pareto_a_slider.value,
+                        pareto_xm=pareto_xm_slider.value, normal_mean=normal_mean_slider.value, normal_std=normal_std_slider.value,
+                        uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value,
+                        cache_policy=cache_policy_select.value, clock_k=clock_k_slider.value,
+                        m1_fraction=new, h_lists=h_lists_slider.value)
+    mrc_source.data = dict(c=c, hr=hr)
+
+m1_fraction_slider.on_change('value', update_m1_fraction)
+
+def update_h_lists(attrname: str, old: int, new: int):
+    print(f'old {attrname}: {old} -> {new}')
+    c, hr = mrc_compute(k_slider.value, eval(indices_input.value), eval(eps_input.value), p_irm_slider.value,
+                        M=int(M_select.value), n=int(n_select.value),
+                        irm_type=irm_type_select.value, zipf_a=zipf_a_slider.value, pareto_a=pareto_a_slider.value,
+                        pareto_xm=pareto_xm_slider.value, normal_mean=normal_mean_slider.value, normal_std=normal_std_slider.value,
+                        uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value,
+                        cache_policy=cache_policy_select.value, clock_k=clock_k_slider.value,
+                        m1_fraction=m1_fraction_slider.value, h_lists=new)
+    mrc_source.data = dict(c=c, hr=hr)
+
+h_lists_slider.on_change('value', update_h_lists)
+
+
+def update_cache_policy(attrname: str, old: str, new: str):
+    print(f'old {attrname}: {old} -> {new}')
+    clock_k_slider.visible = new in ["CLOCK", "RanCLOCK"]
+    is_m_list_policy = new in ["RAND(m)", "FIFO(m)"]
+    m1_fraction_slider.visible = is_m_list_policy
+    h_lists_slider.visible = is_m_list_policy
+    c, hr = mrc_compute(k_slider.value, eval(indices_input.value), eval(eps_input.value), p_irm_slider.value,
+                        M=int(M_select.value), n=int(n_select.value),
+                        irm_type=irm_type_select.value, zipf_a=zipf_a_slider.value, pareto_a=pareto_a_slider.value,
+                        pareto_xm=pareto_xm_slider.value, normal_mean=normal_mean_slider.value, normal_std=normal_std_slider.value,
+                        uniform_a=uniform_a_slider.value, uniform_b=uniform_b_slider.value,
+                        cache_policy=new, clock_k=clock_k_slider.value,
+                        m1_fraction=m1_fraction_slider.value, h_lists=h_lists_slider.value)
     mrc_source.data = dict(c=c, hr=hr)
 
 
@@ -361,7 +486,7 @@ layout = row(
     column(n_select), 
     column(f_title, k_slider, indices_input, eps_input), 
     column(g_title, irm_type_select, zipf_a_slider, pareto_a_slider, pareto_xm_slider, normal_mean_slider, normal_std_slider, uniform_a_slider, uniform_b_slider),
-    column(p_irm_slider, cache_policy_select), 
+    column(p_irm_slider, cache_policy_select, clock_k_slider, m1_fraction_slider, h_lists_slider), 
     column(p2)
 )
 
