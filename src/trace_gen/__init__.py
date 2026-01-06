@@ -11,6 +11,8 @@ from .fifo_wrapper import *
 from .fifo_m_wrapper import *
 from .clock_wrapper import *
 from .ran_clock_wrapper import *
+from .ran_sieve_wrapper import *
 from .sieve_wrapper import *
 from .rand_m_wrapper import *
+from .min_wrapper import *
 # from .arc_wrapper import *

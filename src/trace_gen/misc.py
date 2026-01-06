@@ -9,6 +9,8 @@ import trace_gen.clock_wrapper as clock
 import trace_gen.sieve_wrapper as sieve
 # import trace_gen.arc_wrapper as arc
 import trace_gen.ran_clock_wrapper as ran_clock
+import trace_gen.ran_sieve_wrapper as ran_sieve
+import trace_gen.min_wrapper as min_cache
 import trace_gen.rand_m_wrapper as rand_m
 import heapq
 import numpy as np
@@ -191,8 +193,8 @@ def sim_lfu(C, trace, raw=True):
     else:
         return l.hitrate()
 
-def sim_ran_clock(C, trace, raw=True, K=1):
-    rc = ran_clock.ran_clock(C, K=K)
+def sim_ran_clock(C, trace, raw=True, K=1, seed=None):
+    rc = ran_clock.ran_clock(C, K=K, seed=seed)
     rc.run(trace)
     if raw:
         a, m, c, r, x, y = rc.data()
@@ -200,14 +202,32 @@ def sim_ran_clock(C, trace, raw=True, K=1):
     else:
         return rc.hitrate() 
 
-def sim_sieve(C, trace, raw=True):
-    s = sieve.sieve(C)
+def sim_ran_sieve(C, trace, raw=True, K=1, seed=None):
+    rs = ran_sieve.ran_sieve(C, K=K, seed=seed)
+    rs.run(trace)
+    if raw:
+        a, m, c, r, x, y = rs.data()
+        return 1 - m/a
+    else:
+        return rs.hitrate()
+
+def sim_sieve(C, trace, raw=True, K=1):
+    s = sieve.sieve(C, K=K)
     s.run(trace)
     if raw:
         a, m, *_ = s.data()
         return 1 - m/a
     else:
         return s.hitrate()
+
+def sim_min(C, trace, raw=True):
+    mpol = min_cache.belady_min(C)
+    mpol.run(trace)
+    if raw:
+        a, m, *_ = mpol.data()
+        return 1 - m/a
+    else:
+        return mpol.hitrate()
 
 
 def sim_fifo_m(m, trace, raw=True, strict=False, lru_policy=False):

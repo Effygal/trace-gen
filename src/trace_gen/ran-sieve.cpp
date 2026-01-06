@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <list>
+#include <random>
 #include <stdint.h>
 #include <vector>
 #include <pybind11/pybind11.h>
@@ -8,16 +9,16 @@
 
 namespace py = pybind11;
 
-class sieve
+class ran_sieve
 {
 	int C = 0;
-	std::list<int> cache; // front = head (newest), back = tail (oldest)
+	int K = 1;
+	std::vector<int> cache;
 	std::vector<char> map;		  
 	std::vector<int> counter;	   
-	std::vector<int> enter_time;   
-	std::vector<int> ref_time;	   
+	std::vector<int> t_enter;   
+	std::vector<int> t_ref;	   
 	int n_top = 0;
-	int K = 1;
 	double sum_top = 0, sum_top2 = 0;
 
 	int n_cachefill = 0;
@@ -27,8 +28,7 @@ class sieve
 	int n_examined = 0;
 	int sum_counter = 0;
 
-	std::list<int>::iterator hand;
-	bool hand_valid = false;
+	std::mt19937 rng;
 
 	void expand(int32_t addr)
 	{
@@ -37,9 +37,14 @@ class sieve
 			int n = addr * 3 / 2 + 1;
 			map.resize(n, 0);
 			counter.resize(n, 0);
-			enter_time.resize(n, 0);
-			ref_time.resize(n, 0);
+			t_enter.resize(n, 0);
+			t_ref.resize(n, 0);
 		}
+	}
+
+	bool full(void)
+	{
+		return static_cast<int>(cache.size()) == C;
 	}
 
 	int pop(int* ref_age = nullptr, int* ent_age = nullptr)
@@ -47,80 +52,56 @@ class sieve
 		if (cache.empty())
 			return -1;
 
-		if (!hand_valid)
-		{
-			hand = cache.end();
-			hand_valid = true;
-		}
-		if (hand == cache.end())
-			hand = std::prev(cache.end()); 
-		auto it = hand;
+		std::uniform_int_distribution<int> dist(0, C - 1);
 		while (true)
 		{
-			int addr = *it;
+			int idx = dist(rng);
+			int addr = cache[idx];
 			n_examined++;
-			if (counter[addr])
+			if (counter[addr] > 0)
 			{
 				sum_counter += counter[addr];
 				counter[addr] -= 1;
 				n_recycle++;
-
-				if (it == cache.begin())
-					it = std::prev(cache.end());
-				else
-					--it;
-				continue;
 			}
-
-			int r_age = n_access - ref_time[addr];
-			int e_age = n_access - enter_time[addr];
-			int age = e_age;
-			sum_top += age;
-			sum_top2 += (age * age);
-			n_top++;
-
-			if (it == cache.begin())
-				hand_valid = false;
 			else
 			{
-				hand = std::prev(it);
-				hand_valid = true;
+				int r_age = n_access - t_ref[addr];
+				int e_age = n_access - t_enter[addr];
+				sum_top += e_age;
+				sum_top2 += (e_age * e_age);
+				n_top++;
+				map[addr] = 0;
+				counter[addr] = 0;
+				cache[idx] = cache.back();
+				cache.pop_back(); 
+				if (ref_age)
+					*ref_age = r_age;
+				if (ent_age)
+					*ent_age = e_age;
+				return addr;
 			}
-
-			cache.erase(it);
-			map[addr] = 0;
-			counter[addr] = 0;
-
-			if (ref_age)
-				*ref_age = r_age;
-			if (ent_age)
-				*ent_age = e_age;
-			return addr;
 		}
 	}
 
 	void push(int addr)
 	{
-		cache.push_front(addr);
+		cache.push_back(addr);
 		map[addr] = 1;
 		counter[addr] = 0;
-		enter_time[addr] = ref_time[addr] = n_access;
+		t_enter[addr] = t_ref[addr] = n_access;
 	}
 
 public:
-	sieve(int _C, int _K = 1) : C(_C), K(std::max(1, _K))
+	ran_sieve(int _C, int _K = 1, uint32_t seed = 0) : C(_C), K(std::max(1, _K)), rng(seed ? seed : std::random_device{}())
 	{
 		map.resize(100000, 0);
 		counter.resize(100000, 0);
-		enter_time.resize(100000, 0);
-		ref_time.resize(100000, 0);
+		t_enter.resize(100000, 0);
+		t_ref.resize(100000, 0);
+		cache.reserve(C);
 	}
-	~sieve() {}
-
-	bool full(void)
-	{
-		return static_cast<int>(cache.size()) >= C;
-	}
+	~ran_sieve() {}
 
 	int contents(py::array_t< int >& val)
 	{
@@ -155,7 +136,7 @@ public:
 		{
 			if (counter[addr] < K)
 				counter[addr] += 1;
-			ref_time[addr] = n_access;
+			t_ref[addr] = n_access;
 		}
 	}
 
@@ -203,7 +184,7 @@ public:
 		{
 			if (counter[addr] < K)
 				counter[addr] += 1;
-			ref_time[addr] = n_access;
+			t_ref[addr] = n_access;
 		}
 	}
 
@@ -255,41 +236,41 @@ public:
 	}
 };
 
-PYBIND11_MODULE(_sieve, m)
+PYBIND11_MODULE(_ran_sieve, m)
 {
-	py::class_<sieve>(m, "sieve")
-		.def(py::init<int, int>(), py::arg("C"), py::arg("K") = 1)
-		.def("multi_access", &sieve::multi_access)
-		.def("contents", &sieve::contents)
-		.def("multi_access_age", &sieve::multi_access_age)
-		.def("queue_stats", &sieve::queue_stats)
-		.def("hit_rate", &sieve::hit_rate)
-		.def("data", &sieve::data);
-	m.def("sieve_create", [](int C, int K) {
-		return new sieve(C, K);
-	}, py::arg("C"), py::arg("K") = 1);
-	m.def("sieve_run", [](void* _c, int n, py::array_t< int32_t >& a) {
-		sieve* c = (sieve *)_c;
+	py::class_<ran_sieve>(m, "ran_sieve")
+		.def(py::init<int, int, uint32_t>(), py::arg("C"), py::arg("K") = 1, py::arg("seed") = 0)
+		.def("multi_access", &ran_sieve::multi_access)
+		.def("contents", &ran_sieve::contents)
+		.def("multi_access_age", &ran_sieve::multi_access_age)
+		.def("queue_stats", &ran_sieve::queue_stats)
+		.def("hit_rate", &ran_sieve::hit_rate)
+		.def("data", &ran_sieve::data);
+	m.def("ran_sieve_create", [](int C, int K, uint32_t seed) {
+		return new ran_sieve(C, K, seed);
+	}, py::arg("C"), py::arg("K") = 1, py::arg("seed") = 0);
+	m.def("ran_sieve_run", [](void* _c, int n, py::array_t< int32_t >& a) {
+		ran_sieve* c = (ran_sieve *)_c;
 		c->multi_access(n, a);
 	});
-	m.def("sieve_contents", [](void* _c, py::array_t< int >& out) {
-		sieve* c = (sieve *)_c;
+	m.def("ran_sieve_contents", [](void* _c, py::array_t< int >& out) {
+		ran_sieve* c = (ran_sieve *)_c;
 		return c->contents(out);
 	});
-	m.def("sieve_run_age", [](void* _c, int n, py::array_t< int32_t >& a, py::array_t< int >& b, py::array_t< int >& c, py::array_t< int >& d, py::array_t< int >& e) {
-		sieve* cl = (sieve *)_c;
+	m.def("ran_sieve_run_age", [](void* _c, int n, py::array_t< int32_t >& a, py::array_t< int >& b, py::array_t< int >& c, py::array_t< int >& d, py::array_t< int >& e) {
+		ran_sieve* cl = (ran_sieve *)_c;
 		cl->multi_access_age(n, a, b, c, d, e);
 	});
-	m.def("sieve_queue_stats", [](void* _c, py::array_t< int >& n, py::array_t< double >& sum, py::array_t< double >& sum2) {
-		sieve* c = (sieve *)_c;
+	m.def("ran_sieve_queue_stats", [](void* _c, py::array_t< int >& n, py::array_t< double >& sum, py::array_t< double >& sum2) {
+		ran_sieve* c = (ran_sieve *)_c;
 		c->queue_stats(n, sum, sum2);
 	});
-	m.def("sieve_hitrate", [](void* _c) {
-		sieve* c = (sieve *)_c;
+	m.def("ran_sieve_hitrate", [](void* _c) {
+		ran_sieve* c = (ran_sieve *)_c;
 		return c->hit_rate();
 	});
-	m.def("sieve_data", [](void* _c) -> py::tuple {
-		sieve* cl = (sieve *)_c;
+	m.def("ran_sieve_data", [](void* _c) -> py::tuple {
+		ran_sieve* cl = (ran_sieve *)_c;
 		int _access, _miss, _cachefill, _recycle, _examined, _sum_counter;
 		cl->data(_access, _miss, _cachefill, _recycle, _examined, _sum_counter);
 		return py::make_tuple(_access, _miss, _cachefill, _recycle, _examined, _sum_counter);

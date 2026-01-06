@@ -4,8 +4,11 @@ import _ran_clock
 
 
 class ran_clock:
-    def __init__(self, C, K=1):
-        self.f = _ran_clock.ran_clock_create(C, K)
+    def __init__(self, C, K=1, seed=None):
+        if seed is None:
+            self.f = _ran_clock.ran_clock_create(C, K)
+        else:
+            self.f = _ran_clock.ran_clock_create(C, K, np.uint32(seed))
         self.C = C
         self.K = K
 

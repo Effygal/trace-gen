@@ -1,22 +1,25 @@
 from ctypes import c_double, c_int
 import numpy as np
-import _sieve
+import _ran_sieve
 
 
-class sieve:
-    def __init__(self, C, K=1):
-        self.f = _sieve.sieve_create(C, K)
+class ran_sieve:
+    def __init__(self, C, K=1, seed=None):
+        if seed is None:
+            self.f = _ran_sieve.ran_sieve_create(C, K)
+        else:
+            self.f = _ran_sieve.ran_sieve_create(C, K, np.uint32(seed))
         self.C = C
         self.K = K
 
     def run(self, trace):
         if type(trace[0]) != np.int32:
             trace = np.array(trace, dtype=np.int32)
-        _sieve.sieve_run(self.f, len(trace), trace)
+        _ran_sieve.ran_sieve_run(self.f, len(trace), trace)
 
     def contents(self):
         val = np.zeros(self.C, dtype=np.int32)
-        n = _sieve.sieve_contents(self.f, val)
+        n = _ran_sieve.ran_sieve_contents(self.f, val)
         return val[:n]
 
     def run_parts(self, trace, n):
@@ -45,7 +48,7 @@ class sieve:
         evicted = np.zeros(len(trace), dtype=np.int32)
         age1 = np.zeros(len(trace), dtype=np.int32)
         age2 = np.zeros(len(trace), dtype=np.int32)
-        _sieve.sieve_run_age(self.f, len(trace), trace, evicted, misses, age1, age2)
+        _ran_sieve.ran_sieve_run_age(self.f, len(trace), trace, evicted, misses, age1, age2)
         return [age1, age2, misses]
 
     def hitrate(self):
@@ -54,7 +57,7 @@ class sieve:
 
     def queue_raw_stats(self):
         n, s, s2 = c_int(), c_double(), c_double()
-        _sieve.sieve_queue_stats(self.f, n, s, s2)
+        _ran_sieve.ran_sieve_queue_stats(self.f, n, s, s2)
         return [n.value, s.value, s2.value]
 
     def queue_stats(self):
@@ -62,4 +65,4 @@ class sieve:
         return (s/n, np.sqrt((s2 - s*s/n)/(n-1)))
 
     def data(self):
-        return _sieve.sieve_data(self.f)
+        return _ran_sieve.ran_sieve_data(self.f)

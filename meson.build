@@ -86,8 +86,10 @@ python_sources = [
     'src/trace_gen/fifo_m_wrapper.py',
     'src/trace_gen/clock_wrapper.py',
     'src/trace_gen/ran_clock_wrapper.py',
+    'src/trace_gen/ran_sieve_wrapper.py',
     'src/trace_gen/sieve_wrapper.py',
     'src/trace_gen/rand_m_wrapper.py',
+    'src/trace_gen/min_wrapper.py',
     #   'src/trace_gen/arc_wrapper.py'
 ]
 
@@ -164,8 +166,24 @@ module = py.extension_module(
 )
 
 module = py.extension_module(
+    '_ran_sieve',
+    sources: ['src/trace_gen/ran-sieve.cpp'],
+    include_directories: includes,
+    install: true,
+    cpp_args: _cpp_args,
+)
+
+module = py.extension_module(
     '_rand_m',
     sources: ['src/trace_gen/rand_m.cpp'],
+    include_directories: includes,
+    install: true,
+    cpp_args: _cpp_args,
+)
+
+module = py.extension_module(
+    '_min',
+    sources: ['src/trace_gen/min.cpp'],
     include_directories: includes,
     install: true,
     cpp_args: _cpp_args,

@@ -165,7 +165,7 @@ private:
 
 public:
 
-	ran_clock(int _C, int _K = 1) : rng(std::random_device{}())
+	ran_clock(int _C, int _K = 1, uint32_t seed = 0) : rng(seed ? seed : std::random_device{}())
 	{
 		C = _C;
 		K = std::max(1, _K);
@@ -258,16 +258,16 @@ public:
 PYBIND11_MODULE(_ran_clock, m)
 {
 	py::class_<ran_clock>(m, "ran_clock")
-		.def(py::init<int, int>(), py::arg("C"), py::arg("K") = 1)
+		.def(py::init<int, int, uint32_t>(), py::arg("C"), py::arg("K") = 1, py::arg("seed") = 0)
 		.def("multi_access", &ran_clock::multi_access, py::arg("n"), py::arg("addrs"))
 		.def("contents", &ran_clock::contents)
 		.def("multi_access_age", &ran_clock::multi_access_age, py::arg("n"), py::arg("addrs"), py::arg("evicted"), py::arg("misses"), py::arg("age1"), py::arg("age2"), py::arg("examined"))
 		.def("queue_stats", &ran_clock::queue_stats)
 		.def("hit_rate", &ran_clock::hit_rate)
 		.def("data", &ran_clock::data);
-	m.def("ran_clock_create", [](int C, int K) {
-		return new ran_clock(C, K);
-	}, py::arg("C"), py::arg("K") = 1);
+	m.def("ran_clock_create", [](int C, int K, uint32_t seed) {
+		return new ran_clock(C, K, seed);
+	}, py::arg("C"), py::arg("K") = 1, py::arg("seed") = 0);
 	m.def("ran_clock_run", [](void* _c, int n, py::array_t< int32_t >& a) {
 		ran_clock* c = (ran_clock *)_c;
 		c->multi_access(n, a);

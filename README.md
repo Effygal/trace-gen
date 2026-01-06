@@ -225,16 +225,22 @@ volume01 = tg.squash(volume01[volume01%17 == 0])
 We ship several cache simulators; all expose `.run(trace)` and `.hitrate()` plus `data()` for raw counters.
 
 - **LRU / FIFO / LFU**: Simple policies via `tg.lru`, `tg.fifo`, `tg.lfu`.
-- **CLOCK (K)**: Second-chance FIFO with configurable counter cap `K` (`K=1` reduces to the classic CLOCK [1]).
-- **RanCLOCK**: CLOCK with randomized hand; same `K` semantics.
-- **SIEVE**:[2]
+- **CLOCK(K)**: CLOCK with configurable counter cap `K`. (`K=1` reduces to the classic CLOCK [1]; `K=0` reduces the algorithm to FIFO).
+- **RanCLOCK(K)**: CLOCK with randomized hand; same `K` semantics. (`K=0` reduces to RANDOM).
+- **SIEVE(K)**: a variant of [2] with counter cap `K`. (`K=1` reduces to the original SIEVE [2]; similarly, `K=0` reduces to FIFO).
+- **RanSIEVE(K)**: Randomized SIEVE variant. Algorithmaically identical to RanCLOCK. (But we needed to test if it's true.)(again, `K=0` reduces to RANDOM).
 - **FIFO(m) and RAND(m)**: Multi-queue/list-based policies [3]; lists are configured as `[m1, m2, …]` using parameters `m1` (first-list size as a fraction of total cache `C`) and `h` (number of lists).
+- **MIN**: Belady's oracle.
 
 Example:
 ```python
-cache = tg.fifo(30000)
-cache.run(volume01)
-cache.hitrate()
+f = tg.fifo(30000)
+f.run(volume01)
+f.hitrate()
+
+rc = tg.ranclock(50000, K=15)
+rc.run(volume01)
+rc.hitrate()
 ```
 
 Note that memory usage is dependent on cache size + largest address, so if you have a sparse address range you should use the `misc.squash` function to compact it.
