@@ -84,7 +84,6 @@ def gen_from_ird2(f, M, n):
         if t != -1:
             heapq.heappush(h, [t, a0])
             a0 += 1
-
     addrs = []
     for _ in range(n):  
         t = f()
@@ -156,6 +155,60 @@ def gen_from_both_verbose(f, g,  M, n, irm_frac=0):
             time_var.append(t0-count)
         count += 1
     return np.array(addrs, dtype=np.int32), np.array(is_irm, dtype=bool), np.array(time_var, dtype=np.int32)
+
+def gen_from_ph(alphas, Ts, length):
+    # gen from a phase-type distribution with parameters (alphas, Ts)
+    A = np.asarray(alphas, np.float64)
+    T = np.asarray(Ts, np.float64)
+    n, m = A.shape
+    A = A / A.sum(axis=1, keepdims=True)
+    A_cdf = np.cumsum(A, axis=1)
+    A_cdf[:, -1] = 1.0
+    one = np.ones(m, np.float64)
+    mu = -(T @ one)
+    off = T.copy()
+    idx = np.arange(m)
+    off[:, idx, idx] = 0.0
+    rdiag = -np.diagonal(T, axis1=1, axis2=2)
+    jump = np.concatenate((off, mu[..., None]), axis=2) / rdiag[..., None]
+    jump_cdf = np.cumsum(jump, axis=2)
+    jump_cdf[:, :, -1] = 1.0
+    def ph_time(k):
+        s = np.searchsorted(A_cdf[k], np.random.random(), side="right")
+        t = 0.0
+        while 1:
+            rate = rdiag[k, s]
+            t += np.random.exponential(1.0 / rate)
+            nxt = np.searchsorted(jump_cdf[k, s], np.random.random(), side="right")
+            if nxt == m: return t
+            s = nxt
+    h = [(ph_time(i), i) for i in range(n)]
+    heapq.heapify(h)
+    trc = np.empty(length, np.int32)
+    for t_idx in range(length):
+        ct, i = h[0]
+        trc[t_idx] = i + 1
+        heapq.heapreplace(h, (ct + ph_time(i), i))
+    return trc
+
+def gen_from_he(m, a, n):
+    # gen from a hyperexponential (special case of phase-type) distribution with m phases and zipf skew a
+    p = 1.0 / np.power(np.arange(1, m + 1), a)
+    p = p / p.sum()
+    cp = np.cumsum(p)
+    t = p.copy()
+    phases = np.searchsorted(cp, np.random.random(m), side="right")
+    next_times = np.random.exponential(1.0 / t[phases])
+    heap = [(next_times[i], i) for i in range(m)]
+    heapq.heapify(heap)
+    trace = np.empty(n, dtype=np.int32)
+    for idx in range(n):
+        ctime, item = heapq.heappop(heap)
+        trace[idx] = item + 1
+        phases[item] = np.searchsorted(cp, np.random.random(), side="right")
+        next_time = ctime + np.random.exponential(1.0 / t[phases[item]])
+        heapq.heappush(heap, (next_time, item))
+    return trace
 
 def sim_fifo(C, trace, raw=True):
     f = fifo.fifo(C)
