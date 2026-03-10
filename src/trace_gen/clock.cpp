@@ -36,7 +36,7 @@ public:
 	clock1(int _C, int _K = 1)
 	{
 		C = _C;
-		K = std::max(1, _K);
+		K = std::max(0, _K);
 		cache.resize(C + 1);
 		t_enter.resize(C + 1);
 		map.resize(100000, 0);

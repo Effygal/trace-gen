@@ -168,7 +168,7 @@ public:
 	ran_clock(int _C, int _K = 1, uint32_t seed = 0) : rng(seed ? seed : std::random_device{}())
 	{
 		C = _C;
-		K = std::max(1, _K);
+		K = std::max(0, _K);
 		cache.resize(C + 1);
 		t_enter.resize(C + 1);
 		map.resize(100000, 0);
